@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kinetic Low Poly Mechanisms</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #080d11;
+      --panel: #111920;
+      --panel-2: #16232b;
+      --text: #eef7f4;
+      --muted: #9bb1b0;
+      --cyan: #31d9ef;
+      --gold: #e6b769;
+      --green: #76e0a5;
+      --line: rgba(255, 255, 255, 0.11);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 22% 12%, rgba(49, 217, 239, 0.18), transparent 34%),
+        radial-gradient(circle at 78% 24%, rgba(230, 183, 105, 0.16), transparent 32%),
+        linear-gradient(145deg, #070b0f 0%, #0b1419 52%, #111714 100%);
+    }
+
+    main {
+      width: min(1120px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 48px 0;
+    }
+
+    header {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    h1 {
+      margin: 0;
+      max-width: 780px;
+      font-size: clamp(2.2rem, 6vw, 5.4rem);
+      line-height: 0.95;
+      font-weight: 780;
+      letter-spacing: 0;
+    }
+
+    p {
+      max-width: 700px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.6;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
+    }
+
+    .tile {
+      display: grid;
+      min-height: 340px;
+      padding: 22px;
+      color: inherit;
+      text-decoration: none;
+      background:
+        linear-gradient(150deg, rgba(255, 255, 255, 0.08), transparent 48%),
+        linear-gradient(180deg, var(--panel), var(--panel-2));
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+      transition: transform 180ms ease, border-color 180ms ease, background 180ms ease;
+    }
+
+    .tile:focus-visible,
+    .tile:hover {
+      transform: translateY(-3px);
+      border-color: rgba(49, 217, 239, 0.55);
+    }
+
+    .tile::before,
+    .tile::after {
+      content: "";
+      position: absolute;
+      border-radius: 50%;
+      opacity: 0.9;
+      pointer-events: none;
+    }
+
+    .tile::before {
+      width: 190px;
+      height: 190px;
+      right: -54px;
+      top: -54px;
+      border: 12px solid rgba(49, 217, 239, 0.2);
+      box-shadow: 0 0 42px rgba(49, 217, 239, 0.2);
+    }
+
+    .tile::after {
+      width: 118px;
+      height: 118px;
+      right: 78px;
+      bottom: 48px;
+      border: 10px solid rgba(230, 183, 105, 0.24);
+    }
+
+    .tile:nth-child(2):focus-visible,
+    .tile:nth-child(2):hover {
+      border-color: rgba(118, 224, 165, 0.6);
+    }
+
+    .tile:nth-child(2)::before {
+      border-color: rgba(118, 224, 165, 0.22);
+      box-shadow: 0 0 42px rgba(118, 224, 165, 0.18);
+    }
+
+    .mechanism {
+      align-self: center;
+      display: grid;
+      grid-template-columns: repeat(5, 42px);
+      grid-template-rows: repeat(4, 42px);
+      gap: 10px;
+      transform: rotate(-12deg);
+      transform-origin: center;
+      margin: 54px 0 42px;
+    }
+
+    .gear {
+      width: 42px;
+      height: 42px;
+      background: conic-gradient(from 8deg, var(--cyan), #155b68, var(--gold), #1b3336, var(--cyan));
+      clip-path: polygon(50% 0, 60% 14%, 76% 8%, 82% 24%, 96% 32%, 88% 50%, 96% 68%, 82% 76%, 76% 92%, 60% 86%, 50% 100%, 40% 86%, 24% 92%, 18% 76%, 4% 68%, 12% 50%, 4% 32%, 18% 24%, 24% 8%, 40% 14%);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.36);
+    }
+
+    .gear:nth-child(2n) {
+      background: conic-gradient(from 20deg, var(--gold), #62451e, #243941, var(--cyan), var(--gold));
+      transform: scale(0.82);
+    }
+
+    .gear:nth-child(3n) {
+      background: conic-gradient(from 20deg, var(--green), #174a44, var(--gold), #20363a, var(--green));
+      transform: scale(1.18);
+    }
+
+    .copy {
+      align-self: end;
+      position: relative;
+      z-index: 1;
+    }
+
+    h2 {
+      margin: 0 0 8px;
+      font-size: 1.35rem;
+      letter-spacing: 0;
+    }
+
+    .meta {
+      display: inline-flex;
+      margin-top: 18px;
+      padding: 8px 10px;
+      color: #071014;
+      background: linear-gradient(90deg, var(--cyan), var(--gold));
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 750;
+    }
+
+    @media (max-width: 760px) {
+      main {
+        width: min(100% - 28px, 560px);
+        padding: 32px 0;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .tile {
+        min-height: 300px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Kinetic Low Poly Mechanisms</h1>
+      <p>Two standalone Three.js studies with low-poly machinery, layered gears, cinematic lighting, and subtle mechanical motion.</p>
+    </header>
+
+    <section class="grid" aria-label="Mechanism demos">
+      <a class="tile" href="./low-poly-chromatic-clockwork-turbine.html">
+        <div class="mechanism" aria-hidden="true">
+          <span class="gear"></span><span class="gear"></span><span class="gear"></span><span class="gear"></span><span class="gear"></span>
+          <span class="gear"></span><span class="gear"></span><span class="gear"></span><span class="gear"></span><span class="gear"></span>
+          <span class="gear"></span><span class="gear"></span><span class="gear"></span><span class="gear"></span><span class="gear"></span>
+        </div>
+        <div class="copy">
+          <h2>Chromatic Clockwork Turbine</h2>
+          <p>A colorful turbine assembly with nested gears, glowing accents, and balanced mechanical rotation.</p>
+          <span class="meta">Open demo</span>
+        </div>
+      </a>
+
+      <a class="tile" href="./low-poly-kinetic-gear-bridge.html">
+        <div class="mechanism" aria-hidden="true">
+          <span class="gear"></span><span class="gear"></span><span class="gear"></span><span class="gear"></span><span class="gear"></span>
+          <span class="gear"></span><span class="gear"></span><span class="gear"></span><span class="gear"></span><span class="gear"></span>
+          <span class="gear"></span><span class="gear"></span><span class="gear"></span><span class="gear"></span><span class="gear"></span>
+        </div>
+        <div class="copy">
+          <h2>Kinetic Gear Bridge</h2>
+          <p>An intricate bridge-like gear machine with synchronized shafts, polished low-poly forms, and dynamic lighting.</p>
+          <span class="meta">Open demo</span>
+        </div>
+      </a>
+    </section>
+  </main>
+</body>
+</html>
