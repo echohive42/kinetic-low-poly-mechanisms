@@ -64,7 +64,7 @@
 
     .grid {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 18px;
     }
 
@@ -167,6 +167,16 @@
       box-shadow: 0 0 42px rgba(118, 224, 165, 0.18);
     }
 
+    .tile:nth-child(3):focus-visible,
+    .tile:nth-child(3):hover {
+      border-color: rgba(255, 49, 210, 0.58);
+    }
+
+    .tile:nth-child(3)::before {
+      border-color: rgba(24, 255, 244, 0.22);
+      box-shadow: 0 0 42px rgba(255, 49, 210, 0.16);
+    }
+
     .mechanism {
       align-self: center;
       display: grid;
@@ -219,6 +229,12 @@
       font-weight: 750;
     }
 
+    @media (max-width: 960px) {
+      .grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
     @media (max-width: 760px) {
       main {
         width: min(100% - 28px, 560px);
@@ -244,7 +260,7 @@
   <main>
     <header>
       <h1>Kinetic Low Poly Mechanisms</h1>
-      <p>Two standalone Three.js studies with low-poly machinery, layered gears, cinematic lighting, and subtle mechanical motion.</p>
+      <p>Three standalone Three.js studies with low-poly machinery, layered gears, mathematical wave motion, cinematic lighting, and subtle mechanical animation.</p>
     </header>
 
     <aside class="amplify" aria-label="EchoHive Get Amplified">
@@ -278,6 +294,19 @@
         <div class="copy">
           <h2>Kinetic Gear Bridge</h2>
           <p>An intricate bridge-like gear machine with synchronized shafts, polished low-poly forms, and dynamic lighting.</p>
+          <span class="meta">Open demo</span>
+        </div>
+      </a>
+
+      <a class="tile" href="./low-poly-relativistic-wave-interferometer.html">
+        <div class="mechanism" aria-hidden="true">
+          <span class="gear"></span><span class="gear"></span><span class="gear"></span><span class="gear"></span><span class="gear"></span>
+          <span class="gear"></span><span class="gear"></span><span class="gear"></span><span class="gear"></span><span class="gear"></span>
+          <span class="gear"></span><span class="gear"></span><span class="gear"></span><span class="gear"></span><span class="gear"></span>
+        </div>
+        <div class="copy">
+          <h2>Relativistic Wave Interferometer</h2>
+          <p>A fluorescent low-poly physics instrument with a lifted mathematical wave plane, cyan energy paths, orbit controls, and atmospheric lab lighting.</p>
           <span class="meta">Open demo</span>
         </div>
       </a>

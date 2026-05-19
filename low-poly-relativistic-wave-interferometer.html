@@ -1,0 +1,1216 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Low Poly Relativistic Wave Interferometer</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 42%, rgba(0, 218, 204, 0.16), transparent 28%),
+        radial-gradient(circle at 26% 22%, rgba(198, 105, 42, 0.09), transparent 26%),
+        linear-gradient(180deg, #020508 0%, #071017 45%, #020407 100%);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+    }
+    canvas:active { cursor: grabbing; }
+    .vignette,
+    .film-grain,
+    .scan-glow {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+    }
+    .vignette {
+      background:
+        radial-gradient(circle at 50% 46%, transparent 0%, transparent 51%, rgba(0, 0, 0, 0.62) 100%),
+        linear-gradient(180deg, rgba(0, 0, 0, 0.34), transparent 38%, rgba(0, 0, 0, 0.28));
+    }
+    .film-grain {
+      opacity: 0.06;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+      background-size: 3px 3px;
+      mix-blend-mode: screen;
+      mask-image: radial-gradient(circle at center, black 0%, black 68%, transparent 100%);
+    }
+    .scan-glow {
+      opacity: 0.55;
+      background:
+        radial-gradient(circle at 52% 47%, rgba(57, 255, 232, 0.12), transparent 24%),
+        radial-gradient(circle at 50% 88%, rgba(32, 255, 217, 0.09), transparent 21%);
+      mix-blend-mode: screen;
+    }
+  </style>
+</head>
+<body>
+  <div class="scan-glow" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+  <div class="film-grain" aria-hidden="true"></div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x04080c);
+    scene.fog = new THREE.FogExp2(0x071117, 0.026);
+
+    const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.1, 120);
+    camera.position.set(7.6, 7.15, 8.4);
+    camera.lookAt(0, 1.22, 0);
+
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: false,
+      powerPreference: "high-performance"
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.86;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.prepend(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1.16, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.enablePan = true;
+    controls.screenSpacePanning = true;
+    controls.enableZoom = true;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.24;
+    controls.minDistance = 6.5;
+    controls.maxDistance = 20;
+    controls.maxPolarAngle = Math.PI * 0.47;
+    controls.minPolarAngle = Math.PI * 0.18;
+    controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+    controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
+    controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+    controls.touches.ONE = THREE.TOUCH.ROTATE;
+    controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+
+    const root = new THREE.Group();
+    scene.add(root);
+
+    const clock = new THREE.Clock();
+    const TAU = Math.PI * 2;
+    const WAVE_PLANE_LIFT = 0.62;
+    const teal = new THREE.Color(0x29fff0);
+    const dimTeal = new THREE.Color(0x0a7775);
+    const copper = new THREE.Color(0xc47a48);
+    const darkCopper = new THREE.Color(0x6b3d23);
+    const graphite = new THREE.Color(0x071016);
+
+    const mats = {
+      obsidian: new THREE.MeshStandardMaterial({
+        color: 0x071016,
+        roughness: 0.42,
+        metalness: 0.55,
+        envMapIntensity: 0.8
+      }),
+      tileA: new THREE.MeshStandardMaterial({
+        color: 0x0b1318,
+        roughness: 0.34,
+        metalness: 0.64
+      }),
+      tileB: new THREE.MeshStandardMaterial({
+        color: 0x101a20,
+        roughness: 0.38,
+        metalness: 0.58
+      }),
+      blackMetal: new THREE.MeshStandardMaterial({
+        color: 0x0a1117,
+        roughness: 0.29,
+        metalness: 0.82
+      }),
+      blackFacet: new THREE.MeshStandardMaterial({
+        color: 0x111d25,
+        roughness: 0.46,
+        metalness: 0.72,
+        flatShading: true
+      }),
+      copper: new THREE.MeshStandardMaterial({
+        color: copper,
+        roughness: 0.24,
+        metalness: 0.86
+      }),
+      darkCopper: new THREE.MeshStandardMaterial({
+        color: darkCopper,
+        roughness: 0.34,
+        metalness: 0.9
+      }),
+      silverFacet: new THREE.MeshStandardMaterial({
+        color: 0x98a9af,
+        roughness: 0.31,
+        metalness: 0.68,
+        flatShading: true
+      }),
+      brightSilver: new THREE.MeshStandardMaterial({
+        color: 0xd7e2df,
+        roughness: 0.21,
+        metalness: 0.72,
+        flatShading: true
+      }),
+      meshSurface: new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        roughness: 0.34,
+        metalness: 0.64,
+        flatShading: true,
+        side: THREE.DoubleSide,
+        vertexColors: true
+      }),
+      meshGlow: new THREE.MeshBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.48,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false
+      }),
+      meshBack: new THREE.MeshStandardMaterial({
+        color: 0x344549,
+        roughness: 0.68,
+        metalness: 0.34,
+        flatShading: true,
+        side: THREE.DoubleSide
+      }),
+      cyanCore: new THREE.MeshStandardMaterial({
+        color: 0x08ddd0,
+        emissive: 0x00cfc4,
+        emissiveIntensity: 1.5,
+        roughness: 0.18,
+        metalness: 0.12,
+        toneMapped: false
+      }),
+      cyanGlass: new THREE.MeshStandardMaterial({
+        color: 0x15e6da,
+        emissive: 0x00bdb2,
+        emissiveIntensity: 0.95,
+        roughness: 0.06,
+        metalness: 0.05,
+        transparent: true,
+        opacity: 0.34,
+        depthWrite: false,
+        toneMapped: false
+      }),
+      wire: new THREE.LineBasicMaterial({
+        color: 0xd9f4ed,
+        transparent: true,
+        opacity: 0.48,
+        depthWrite: false
+      }),
+      contourLine: new THREE.LineBasicMaterial({
+        color: 0x80fff5,
+        transparent: true,
+        opacity: 0.64,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false
+      }),
+      tensorLine: new THREE.LineBasicMaterial({
+        color: 0xffb06a,
+        transparent: true,
+        opacity: 0.46,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false
+      }),
+      tensorRod: new THREE.MeshStandardMaterial({
+        color: 0xf0a05f,
+        emissive: 0x5f2b10,
+        emissiveIntensity: 0.18,
+        roughness: 0.25,
+        metalness: 0.84
+      }),
+      cyanLine: new THREE.LineBasicMaterial({
+        color: 0x13fff0,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false
+      }),
+      cyanSoftLine: new THREE.LineBasicMaterial({
+        color: 0x0ee7dc,
+        transparent: true,
+        opacity: 0.24,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false
+      }),
+      fogPoint: new THREE.PointsMaterial({
+        color: 0xaad1d0,
+        size: 0.16,
+        transparent: true,
+        opacity: 0.052,
+        depthWrite: false
+      })
+    };
+
+    const animated = {
+      rings: [],
+      pendulums: [],
+      laserParticles: [],
+      waveLines: [],
+      fog: null,
+      fogData: [],
+      saddle: null,
+      saddleGlow: null,
+      saddleBase: [],
+      saddleLines: [],
+      tensorGlyphs: [],
+      focusNodes: [],
+      cyanPulses: [],
+      mechanical: []
+    };
+
+    const graphPalette = {
+      abyss: new THREE.Color(0x162d35),
+      teal: new THREE.Color(0x0fa6a4),
+      cyan: new THREE.Color(0x71fff2),
+      blue: new THREE.Color(0x3e77d7),
+      violet: new THREE.Color(0x8b5cf6),
+      magenta: new THREE.Color(0xe45aa8),
+      red: new THREE.Color(0xe24a3b),
+      orange: new THREE.Color(0xff7a2f),
+      amber: new THREE.Color(0xffb86b),
+      neonPeak: new THREE.Color(0xfff45a),
+      neonMagenta: new THREE.Color(0xff31d2),
+      neonLow: new THREE.Color(0x18fff4),
+      neonGreen: new THREE.Color(0x83ff5a),
+      cream: new THREE.Color(0xf6f2dc)
+    };
+    const graphModeColors = [
+      new THREE.Color(0x54f7e4),
+      new THREE.Color(0x6c8cff),
+      new THREE.Color(0xd86bff),
+      new THREE.Color(0xff7a2f)
+    ];
+    const graphColorScratch = new THREE.Color();
+    const graphColorA = new THREE.Color();
+    const graphColorB = new THREE.Color();
+
+    function add(mesh, parent = root) {
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      parent.add(mesh);
+      return mesh;
+    }
+
+    function box(w, h, d, mat, x = 0, y = 0, z = 0, parent = root) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      m.position.set(x, y, z);
+      return add(m, parent);
+    }
+
+    function cyl(radiusTop, radiusBottom, height, radialSegments, mat, x = 0, y = 0, z = 0, parent = root) {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(radiusTop, radiusBottom, height, radialSegments, 1, false), mat);
+      m.position.set(x, y, z);
+      return add(m, parent);
+    }
+
+    function sphere(radius, mat, x = 0, y = 0, z = 0, detail = 1, parent = root) {
+      const m = new THREE.Mesh(new THREE.IcosahedronGeometry(radius, detail), mat);
+      m.position.set(x, y, z);
+      return add(m, parent);
+    }
+
+    function torus(major, tube, radial, tubular, mat, parent = root) {
+      const m = new THREE.Mesh(new THREE.TorusGeometry(major, tube, radial, tubular), mat);
+      return add(m, parent);
+    }
+
+    function makeCylinderBetween(a, b, radius, mat, radialSegments = 10, parent = root) {
+      const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+      const dir = new THREE.Vector3().subVectors(b, a);
+      const length = dir.length();
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, length, radialSegments, 1, false), mat);
+      m.position.copy(mid);
+      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+      return add(m, parent);
+    }
+
+    function orientCylinderBetween(mesh, a, b) {
+      const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+      const dir = new THREE.Vector3().subVectors(b, a);
+      mesh.position.copy(mid);
+      mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+    }
+
+    function makeLine(points, mat, parent = root) {
+      const g = new THREE.BufferGeometry().setFromPoints(points);
+      const l = new THREE.Line(g, mat);
+      parent.add(l);
+      return l;
+    }
+
+    function sech(v) {
+      return 1 / Math.cosh(v);
+    }
+
+    function smoother(v) {
+      return v * v * v * (v * (v * 6 - 15) + 10);
+    }
+
+    function surfaceMode(t) {
+      const mode = (t * 0.34) % 4;
+      const index = Math.floor(mode);
+      return { index, next: (index + 1) % 4, mix: smoother(mode - index) };
+    }
+
+    function surfaceProfile(index, x, z, t) {
+      const r = Math.hypot(x, z);
+      const theta = Math.atan2(z, x);
+      if (index === 0) {
+        const radialPulse = 0.24 * Math.cos(6.2 * r - t * 8.6) / (1 + 0.2 * r);
+        const chladni = 0.23 * Math.sin(2.8 * x + t * 5.2) * Math.sin(2.55 * z - t * 4.7);
+        const saddleBeat = 0.1 * Math.sin((x * x - z * z) * 0.72 + t * 3.8);
+        return radialPulse + chladni + saddleBeat;
+      }
+      if (index === 1) {
+        const spiral = 0.29 * Math.sin(4.2 * theta + 3.1 * r - t * 6.1) / (1 + 0.1 * r);
+        const breathingRing = 0.2 * Math.cos(8.1 * (r - 0.22 * Math.sin(t * 1.4)) - t * 5.8) / (1 + 0.28 * r);
+        const vortexShear = 0.1 * Math.sin(2.7 * x * Math.cos(t * 0.7) + 2.7 * z * Math.sin(t * 0.7));
+        return spiral + breathingRing + vortexShear;
+      }
+      if (index === 2) {
+        const lissajous = 0.25 * Math.sin(3.35 * x + 1.2 * Math.sin(t * 2.4)) * Math.cos(2.95 * z - t * 5.6);
+        const solitonAxis = x * 0.72 + z * 0.38 - Math.sin(t * 2.0) * 2.2;
+        const soliton = 0.37 * sech(solitonAxis * 1.75) * Math.sin(t * 5.8);
+        const crossing = 0.12 * Math.sin((x + z) * 3.2 - t * 6.4);
+        return lissajous + soliton + crossing;
+      }
+      const monkey = 0.028 * (x * x * x - 3 * x * z * z);
+      const fold = 0.28 * Math.tanh(Math.sin(t * 1.55) * x + Math.cos(t * 1.2) * z);
+      const caustic = 0.22 * Math.cos(2.1 * x - 3.4 * z + t * 5.1) * Math.sin(2.4 * z + t * 3.6);
+      const angular = 0.14 * Math.sin(6 * theta - t * 4.2) * Math.cos(1.45 * r + t * 2.6);
+      return monkey + fold + caustic + angular;
+    }
+
+    function surfaceHeight(x, z, t = 0) {
+      const mode = surfaceMode(t);
+      const base = 1.0 + WAVE_PLANE_LIFT + 0.075 * (x * x - z * z);
+      const a = surfaceProfile(mode.index, x, z, t);
+      const b = surfaceProfile(mode.next, x, z, t);
+      return base + THREE.MathUtils.lerp(a, b, mode.mix) * 1.18;
+    }
+
+    function graphGradient(v, out) {
+      const stops = [
+        graphPalette.abyss,
+        graphPalette.teal,
+        graphPalette.cyan,
+        graphPalette.blue,
+        graphPalette.violet,
+        graphPalette.magenta,
+        graphPalette.orange,
+        graphPalette.amber,
+        graphPalette.cream
+      ];
+      const scaled = THREE.MathUtils.clamp(v, 0, 1) * (stops.length - 1);
+      const i = Math.min(stops.length - 2, Math.floor(scaled));
+      const f = smoother(scaled - i);
+      return out.copy(stops[i]).lerp(stops[i + 1], f);
+    }
+
+    function waveDisplacement(x, z, y) {
+      return y - (1.0 + WAVE_PLANE_LIFT + 0.075 * (x * x - z * z));
+    }
+
+    function centerWaveMask(x, z) {
+      const r = Math.hypot(x, z);
+      return 1 - THREE.MathUtils.smoothstep(r, 1.05, 3.25);
+    }
+
+    function graphVertexColor(x, z, y, velocity, t, out) {
+      const heightN = THREE.MathUtils.clamp((y - WAVE_PLANE_LIFT - 0.05) / 2.8, 0, 1);
+      const speedN = THREE.MathUtils.clamp(velocity / 4.7, 0, 1);
+      const displacement = waveDisplacement(x, z, y);
+      const centerN = centerWaveMask(x, z);
+      const riseN = THREE.MathUtils.smoothstep(displacement, 0.05, 0.62);
+      const lowN = THREE.MathUtils.smoothstep(-displacement, 0.05, 0.62);
+      graphGradient(heightN, out);
+
+      const mode = surfaceMode(t);
+      graphColorA.copy(graphModeColors[mode.index]).lerp(graphModeColors[mode.next], mode.mix);
+      out.lerp(graphColorA, 0.18);
+
+      graphColorB.copy(graphPalette.red).lerp(graphPalette.orange, 0.52 + 0.32 * Math.sin(t * 1.8 + x - z));
+      out.lerp(graphColorB, Math.pow(speedN, 0.62) * 0.68);
+
+      const hotPeak = THREE.MathUtils.smoothstep(heightN * speedN, 0.2, 0.58);
+      out.lerp(graphPalette.amber, hotPeak * 0.5);
+
+      const thermalBand = THREE.MathUtils.smoothstep(
+        Math.sin((x - z) * 1.85 + t * 2.7) * Math.cos((x + z) * 1.15 - t * 1.9) * 0.5 + 0.5,
+        0.66,
+        0.96
+      );
+      const topHeat = THREE.MathUtils.smoothstep(heightN, 0.48, 0.86);
+      const slopeHeat = THREE.MathUtils.smoothstep(Math.abs(y - (1.0 + WAVE_PLANE_LIFT)), 0.45, 1.42);
+      graphColorA.copy(graphPalette.orange).lerp(graphPalette.red, 0.35 + 0.36 * speedN);
+      out.lerp(graphColorA, Math.min(0.52, thermalBand * 0.2 + topHeat * 0.18 + slopeHeat * 0.16));
+
+      const fluoroPulse = 0.55 + 0.45 * Math.sin(t * 4.4 + x * 2.1 - z * 1.6);
+      const fluoroMix = centerN * Math.min(0.72, Math.max(riseN, lowN) * 0.42 + speedN * 0.34 + fluoroPulse * 0.12);
+      if (riseN >= lowN) {
+        graphColorB.copy(graphPalette.neonPeak).lerp(graphPalette.neonMagenta, 0.34 + 0.36 * fluoroPulse);
+      } else {
+        graphColorB.copy(graphPalette.neonLow).lerp(graphPalette.neonGreen, 0.38 + 0.3 * fluoroPulse);
+      }
+      out.lerp(graphColorB, fluoroMix);
+
+      const ridge = Math.abs(Math.sin(x * 2.3 - z * 1.7 + t * 3.1));
+      out.lerp(graphPalette.cream, Math.max(0, ridge - 0.84) * 0.22);
+      return out;
+    }
+
+    function graphGlowColor(x, z, y, velocity, t, out) {
+      const displacement = waveDisplacement(x, z, y);
+      const centerN = centerWaveMask(x, z);
+      const speedN = THREE.MathUtils.clamp(velocity / 4.7, 0, 1);
+      const riseN = THREE.MathUtils.smoothstep(displacement, 0.03, 0.58);
+      const lowN = THREE.MathUtils.smoothstep(-displacement, 0.03, 0.58);
+      const standingBand = THREE.MathUtils.smoothstep(
+        Math.abs(Math.sin(x * 3.0 + z * 2.35 - t * 5.4)),
+        0.58,
+        0.97
+      );
+      const shimmer = 0.55 + 0.45 * Math.sin(t * 5.1 - x * 1.25 + z * 2.1);
+      const energy = centerN * Math.min(1, Math.max(riseN, lowN) * 0.82 + speedN * 0.32 + standingBand * 0.22);
+
+      if (riseN >= lowN) {
+        out.copy(graphPalette.neonPeak).lerp(graphPalette.neonMagenta, 0.36 + 0.32 * shimmer);
+      } else {
+        out.copy(graphPalette.neonLow).lerp(graphPalette.neonGreen, 0.42 + 0.28 * shimmer);
+      }
+
+      return out.multiplyScalar(energy * (1.15 + 0.5 * speedN));
+    }
+
+    function makeSurfacePolyline(points, material, parent = root) {
+      const line = makeLine(points, material.clone(), parent);
+      animated.saddleLines.push({
+        line,
+        coords: points.map(p => ({ x: p.x, z: p.z, lift: p.y - surfaceHeight(p.x, p.z, 0) }))
+      });
+      return line;
+    }
+
+    function buildPlatform() {
+      box(12.9, 0.34, 12.9, mats.obsidian, 0, -0.24, 0);
+      box(11.85, 0.22, 11.85, mats.blackMetal, 0, 0, 0);
+      box(10.7, 0.12, 10.7, mats.obsidian, 0, 0.18, 0);
+
+      const tileSize = 0.92;
+      const count = 12;
+      for (let ix = 0; ix < count; ix++) {
+        for (let iz = 0; iz < count; iz++) {
+          const x = (ix - (count - 1) / 2) * tileSize;
+          const z = (iz - (count - 1) / 2) * tileSize;
+          const mat = (ix + iz) % 2 ? mats.tileA : mats.tileB;
+          const t = box(tileSize * 0.94, 0.035, tileSize * 0.94, mat, x, 0.28, z);
+          t.receiveShadow = true;
+        }
+      }
+
+      for (let i = 0; i < 4; i++) {
+        const rot = i * Math.PI / 2;
+        const rail = box(11.4, 0.18, 0.16, mats.blackFacet, 0, 0.54, -5.82);
+        rail.rotation.y = rot;
+        const lip = box(11.3, 0.06, 0.06, mats.copper, 0, 0.72, -5.7);
+        lip.rotation.y = rot;
+      }
+
+      const baseRing = torus(1.02, 0.12, 10, 40, mats.darkCopper);
+      baseRing.position.set(0, 0.44, 4.58);
+      baseRing.rotation.x = Math.PI / 2;
+      const atomBase = cyl(1.27, 1.43, 0.36, 16, mats.blackMetal, 0, 0.34, 4.58);
+      const atomWell = torus(0.72, 0.025, 8, 72, mats.cyanCore);
+      atomWell.position.set(0, 0.64, 4.58);
+      atomWell.rotation.x = Math.PI / 2;
+      animated.rings.push({ object: atomWell, speed: 0.42, axis: "z" });
+      for (let i = 0; i < 4; i++) {
+        const r = torus(0.72, 0.012, 6, 64, mats.cyanGlass);
+        r.position.set(0, 0.72, 4.58);
+        r.rotation.set(Math.PI / 2, i * Math.PI / 4, i * Math.PI / 5);
+        animated.rings.push({ object: r, speed: 0.2 + i * 0.08, axis: i % 2 ? "x" : "z" });
+      }
+    }
+
+    function buildSaddle() {
+      const N = 42;
+      const size = 5.55;
+      const positions = [];
+      const colors = [];
+      const glowColors = [];
+      const indices = [];
+      const base = [];
+      for (let iz = 0; iz <= N; iz++) {
+        for (let ix = 0; ix <= N; ix++) {
+          const x = (ix / N - 0.5) * size;
+          const z = (iz / N - 0.5) * size;
+          const y = surfaceHeight(x, z, 0);
+          positions.push(x, y, z);
+          graphVertexColor(x, z, y, 0, 0, graphColorScratch);
+          colors.push(graphColorScratch.r, graphColorScratch.g, graphColorScratch.b);
+          graphGlowColor(x, z, y, 0, 0, graphColorScratch);
+          glowColors.push(graphColorScratch.r, graphColorScratch.g, graphColorScratch.b);
+          base.push({ x, y, z });
+        }
+      }
+      for (let iz = 0; iz < N; iz++) {
+        for (let ix = 0; ix < N; ix++) {
+          const a = iz * (N + 1) + ix;
+          const b = a + 1;
+          const c = a + N + 1;
+          const d = c + 1;
+          if ((ix + iz) % 2) {
+            indices.push(a, c, b, b, c, d);
+          } else {
+            indices.push(a, c, d, a, d, b);
+          }
+        }
+      }
+
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      geom.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+      geom.setIndex(indices);
+      geom.computeVertexNormals();
+
+      const saddle = new THREE.Mesh(geom, mats.meshSurface);
+      saddle.castShadow = true;
+      saddle.receiveShadow = true;
+      root.add(saddle);
+      animated.saddle = saddle;
+      animated.saddleBase = base;
+
+      const glowGeom = new THREE.BufferGeometry();
+      glowGeom.setAttribute("position", new THREE.Float32BufferAttribute(positions.slice(), 3));
+      glowGeom.setAttribute("color", new THREE.Float32BufferAttribute(glowColors, 3));
+      glowGeom.setIndex(indices);
+      const saddleGlow = new THREE.Mesh(glowGeom, mats.meshGlow);
+      saddleGlow.castShadow = false;
+      saddleGlow.receiveShadow = false;
+      saddleGlow.position.y = 0.018;
+      root.add(saddleGlow);
+      animated.saddleGlow = saddleGlow;
+
+      const wire = new THREE.LineSegments(new THREE.WireframeGeometry(geom), mats.wire);
+      saddle.add(wire);
+      saddle.userData.wire = wire;
+
+      const samples = 72;
+      for (let row = -2; row <= 2; row++) {
+        const z = row * 0.78;
+        const pts = [];
+        for (let i = 0; i <= samples; i++) {
+          const x = (i / samples - 0.5) * size * 0.96;
+          pts.push(new THREE.Vector3(x, surfaceHeight(x, z, 0) + 0.15, z));
+        }
+        makeSurfacePolyline(pts, row === 0 ? mats.cyanLine : mats.contourLine, root);
+      }
+
+      for (let col = -2; col <= 2; col++) {
+        const x = col * 0.78;
+        const pts = [];
+        for (let i = 0; i <= samples; i++) {
+          const z = (i / samples - 0.5) * size * 0.96;
+          pts.push(new THREE.Vector3(x, surfaceHeight(x, z, 0) + 0.17, z));
+        }
+        makeSurfacePolyline(pts, col === 0 ? mats.cyanLine : mats.contourLine, root);
+      }
+
+      for (let ring = 0; ring < 3; ring++) {
+        const radius = 0.82 + ring * 0.58;
+        const pts = [];
+        for (let i = 0; i <= 104; i++) {
+          const a = i / 104 * TAU;
+          const x = Math.cos(a) * radius;
+          const z = Math.sin(a) * radius;
+          pts.push(new THREE.Vector3(x, surfaceHeight(x, z, 0) + 0.2, z));
+        }
+        makeSurfacePolyline(pts, ring === 1 ? mats.cyanLine : mats.contourLine, root);
+      }
+
+      for (let gx = -2; gx <= 2; gx++) {
+        for (let gz = -2; gz <= 2; gz++) {
+          if ((Math.abs(gx) + Math.abs(gz)) % 2 === 0) continue;
+          const x = gx * 0.82;
+          const z = gz * 0.82;
+          const glyph = makeCylinderBetween(
+            new THREE.Vector3(x, surfaceHeight(x, z, 0) + 0.22, z),
+            new THREE.Vector3(x + 0.32, surfaceHeight(x + 0.32, z + 0.18, 0) + 0.4, z + 0.18),
+            0.012,
+            mats.tensorRod,
+            5
+          );
+          glyph.castShadow = false;
+          glyph.receiveShadow = false;
+          animated.tensorGlyphs.push({ object: glyph, x, z, phase: gx * 0.7 + gz * 1.1 });
+        }
+      }
+
+      const outlinePoints = [
+        new THREE.Vector3(-size / 2, 1.48, -size / 2),
+        new THREE.Vector3(size / 2, 1.48, -size / 2),
+        new THREE.Vector3(size / 2, 1.48, size / 2),
+        new THREE.Vector3(-size / 2, 1.48, size / 2),
+        new THREE.Vector3(-size / 2, 1.48, -size / 2)
+      ];
+      const glow = makeLine(outlinePoints, mats.cyanSoftLine);
+      glow.position.y = 0.13;
+      animated.waveLines.push({ line: glow, base: outlinePoints.map(p => p.clone()), kind: "outline" });
+    }
+
+    function buildEmitter(x, z, yaw, labelIndex = 0) {
+      const g = new THREE.Group();
+      g.position.set(x, 0.34, z);
+      g.rotation.y = yaw;
+      root.add(g);
+
+      box(1.0, 0.16, 1.0, mats.darkCopper, 0, 0.08, 0, g);
+      cyl(0.42, 0.52, 0.42, 12, mats.blackMetal, 0, 0.36, 0, g);
+      cyl(0.34, 0.34, 0.2, 12, mats.darkCopper, 0, 0.7, 0, g);
+      const head = sphere(0.47, mats.brightSilver, 0, 1.06, 0, 1, g);
+      head.scale.set(1.04, 0.82, 1.04);
+      const lens = cyl(0.13, 0.13, 0.1, 16, mats.cyanCore, 0, 1.06, -0.45, g);
+      lens.rotation.x = Math.PI / 2;
+      const halo = torus(0.21, 0.014, 8, 36, mats.cyanGlass, g);
+      halo.position.set(0, 1.06, -0.51);
+      halo.rotation.x = Math.PI / 2;
+      animated.rings.push({ object: halo, speed: 1.1 + labelIndex * 0.09, axis: "z" });
+
+      const armL = makeCylinderBetween(new THREE.Vector3(-0.55, 0.52, 0), new THREE.Vector3(-1.33, 0.52, 0.0), 0.045, mats.copper, 10, g);
+      const armR = makeCylinderBetween(new THREE.Vector3(0.55, 0.52, 0), new THREE.Vector3(1.33, 0.52, 0.0), 0.045, mats.copper, 10, g);
+      cyl(0.12, 0.12, 0.16, 10, mats.darkCopper, -1.38, 0.52, 0, g).rotation.z = Math.PI / 2;
+      cyl(0.12, 0.12, 0.16, 10, mats.darkCopper, 1.38, 0.52, 0, g).rotation.z = Math.PI / 2;
+      animated.mechanical.push({ object: head, amp: 0.035, phase: labelIndex * 0.7 });
+
+      const light = new THREE.PointLight(0x1ffff1, 1.25, 5.2, 1.9);
+      light.position.set(x, 1.55, z);
+      scene.add(light);
+      animated.focusNodes.push(light);
+
+      return g;
+    }
+
+    function buildGyro(position, yaw, scale = 1, backWheel = false) {
+      const g = new THREE.Group();
+      g.position.copy(position);
+      g.rotation.y = yaw;
+      g.scale.setScalar(scale);
+      root.add(g);
+
+      cyl(0.35, 0.46, 0.65, 12, mats.blackFacet, 0, 0.4, 0, g);
+      const ring = torus(0.73, 0.075, 10, 56, mats.darkCopper, g);
+      ring.position.set(0, 1.26, 0);
+      ring.rotation.y = Math.PI / 2;
+      const ring2 = torus(0.52, 0.027, 8, 48, mats.cyanGlass, g);
+      ring2.position.set(0, 1.26, 0);
+      ring2.rotation.y = Math.PI / 2;
+      const spindle = makeCylinderBetween(new THREE.Vector3(-0.65, 1.26, 0), new THREE.Vector3(0.65, 1.26, 0), 0.035, mats.copper, 10, g);
+      spindle.rotation.z = Math.PI / 2;
+      const axisRing = torus(0.38, 0.018, 8, 36, mats.cyanCore, g);
+      axisRing.position.set(0, 1.26, 0);
+      axisRing.rotation.x = Math.PI / 2;
+      const hub = sphere(0.18, mats.cyanCore, 0, 1.26, 0, 1, g);
+      animated.rings.push({ object: ring, speed: backWheel ? 0.54 : 0.82, axis: "x" });
+      animated.rings.push({ object: ring2, speed: backWheel ? -0.9 : -1.12, axis: "y" });
+      animated.rings.push({ object: axisRing, speed: backWheel ? 1.7 : 1.4, axis: "z" });
+
+      const l = new THREE.PointLight(0x19fff0, 0.9 * scale, 4, 2);
+      l.position.copy(position).add(new THREE.Vector3(0, 1.45 * scale, 0));
+      scene.add(l);
+
+      return g;
+    }
+
+    function buildRailArray(z, xStart, xEnd, count, side = 1) {
+      const topY = 3.55;
+      const baseY = 0.56;
+      const group = new THREE.Group();
+      root.add(group);
+      const leftPost = new THREE.Vector3(xStart - 0.3, baseY, z);
+      const rightPost = new THREE.Vector3(xEnd + 0.3, baseY, z);
+      makeCylinderBetween(new THREE.Vector3(leftPost.x, baseY, z), new THREE.Vector3(leftPost.x, topY, z), 0.055, mats.blackMetal, 8, group);
+      makeCylinderBetween(new THREE.Vector3(rightPost.x, baseY, z), new THREE.Vector3(rightPost.x, topY, z), 0.055, mats.blackMetal, 8, group);
+      makeCylinderBetween(new THREE.Vector3(xStart - 0.5, topY, z), new THREE.Vector3(xEnd + 0.5, topY, z), 0.044, mats.copper, 10, group);
+      makeCylinderBetween(new THREE.Vector3(xStart - 0.5, topY - 0.42, z), new THREE.Vector3(xEnd + 0.5, topY - 0.42, z), 0.025, mats.darkCopper, 8, group);
+      for (let i = 0; i < count; i++) {
+        const u = count === 1 ? 0.5 : i / (count - 1);
+        const x = THREE.MathUtils.lerp(xStart, xEnd, u);
+        const drop = 1.08 + 0.3 * Math.sin(i * 1.7);
+        makeCylinderBetween(new THREE.Vector3(x, topY - 0.1, z), new THREE.Vector3(x, topY - drop, z), 0.014, mats.copper, 6, group);
+        const crystal = sphere(0.22 + (i % 2) * 0.05, i % 3 ? mats.silverFacet : mats.brightSilver, x, topY - drop - 0.18, z, 0, group);
+        crystal.scale.set(0.82, 1.32, 0.82);
+        crystal.rotation.y = i * 0.85;
+        const bob = sphere(0.075, mats.darkCopper, x, topY - drop + 0.22, z, 0, group);
+        animated.pendulums.push({
+          pivot: new THREE.Vector3(x, topY - 0.12, z),
+          length: drop + 0.1,
+          crystal,
+          bob,
+          phase: i * 0.7 + z * 0.1,
+          amp: 0.12 + 0.045 * (i % 3),
+          side
+        });
+      }
+    }
+
+    function buildSideRailArray(x, zStart, zEnd, count, side = 1) {
+      const group = new THREE.Group();
+      root.add(group);
+      const topY = 3.28;
+      makeCylinderBetween(new THREE.Vector3(x, 0.56, zStart - 0.25), new THREE.Vector3(x, topY, zStart - 0.25), 0.052, mats.blackMetal, 8, group);
+      makeCylinderBetween(new THREE.Vector3(x, 0.56, zEnd + 0.25), new THREE.Vector3(x, topY, zEnd + 0.25), 0.052, mats.blackMetal, 8, group);
+      makeCylinderBetween(new THREE.Vector3(x, topY, zStart - 0.48), new THREE.Vector3(x, topY, zEnd + 0.48), 0.038, mats.copper, 10, group);
+      for (let i = 0; i < count; i++) {
+        const u = count === 1 ? 0.5 : i / (count - 1);
+        const z = THREE.MathUtils.lerp(zStart, zEnd, u);
+        const drop = 0.95 + 0.32 * Math.cos(i * 1.4);
+        makeCylinderBetween(new THREE.Vector3(x, topY - 0.05, z), new THREE.Vector3(x, topY - drop, z), 0.012, mats.copper, 6, group);
+        const crystal = sphere(0.18 + (i % 2) * 0.06, mats.silverFacet, x, topY - drop - 0.16, z, 0, group);
+        crystal.scale.set(0.8, 1.35, 0.8);
+        animated.pendulums.push({
+          pivot: new THREE.Vector3(x, topY - 0.08, z),
+          length: drop + 0.08,
+          crystal,
+          bob: null,
+          phase: i * 0.52 + x,
+          amp: 0.1 + 0.03 * (i % 3),
+          side
+        });
+      }
+    }
+
+    function buildWaveLine(start, end, amp = 0.12, cycles = 8, y = 1.34, phase = 0) {
+      const pts = [];
+      const dir = new THREE.Vector3().subVectors(end, start);
+      const axis = Math.abs(dir.x) > Math.abs(dir.z) ? "x" : "z";
+      const normal = axis === "x" ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
+      for (let i = 0; i <= 96; i++) {
+        const u = i / 96;
+        const p = new THREE.Vector3().lerpVectors(start, end, u);
+        const s = Math.sin(u * cycles * TAU + phase);
+        p.addScaledVector(normal, s * amp);
+        p.y = y + Math.cos(u * cycles * TAU + phase) * amp * 0.38;
+        pts.push(p);
+      }
+      const line = makeLine(pts, mats.cyanLine);
+      const soft = makeLine(pts, mats.cyanSoftLine);
+      soft.scale.set(1.006, 1.006, 1.006);
+      animated.waveLines.push({ line, soft, start: start.clone(), end: end.clone(), amp, cycles, y, phase, kind: "sine" });
+      return line;
+    }
+
+    function buildInterferometer() {
+      buildEmitter(-3.8, -3.8, -Math.PI / 4, 0);
+      buildEmitter(3.8, -3.8, Math.PI / 4, 1);
+      buildEmitter(3.8, 3.8, Math.PI * 0.75, 2);
+      buildEmitter(-3.8, 3.8, -Math.PI * 0.75, 3);
+      buildEmitter(0, 4.12, Math.PI, 4);
+      buildEmitter(0, -4.08, 0, 5);
+
+      buildGyro(new THREE.Vector3(-5.12, 0.28, 0), Math.PI / 2, 0.9);
+      buildGyro(new THREE.Vector3(5.12, 0.28, 0), -Math.PI / 2, 0.9);
+      buildGyro(new THREE.Vector3(0, 0.38, -5.12), 0, 1.05, true);
+
+      const beamPairs = [
+        [new THREE.Vector3(-3.55, 1.15, -3.55), new THREE.Vector3(3.55, 1.15, -3.55)],
+        [new THREE.Vector3(3.55, 1.15, -3.55), new THREE.Vector3(3.55, 1.15, 3.55)],
+        [new THREE.Vector3(3.55, 1.15, 3.55), new THREE.Vector3(-3.55, 1.15, 3.55)],
+        [new THREE.Vector3(-3.55, 1.15, 3.55), new THREE.Vector3(-3.55, 1.15, -3.55)]
+      ];
+
+      beamPairs.forEach(([a, b]) => {
+        makeCylinderBetween(a, b, 0.02, mats.cyanGlass, 8);
+        makeCylinderBetween(a.clone().setY(0.72), b.clone().setY(0.72), 0.032, mats.blackMetal, 10);
+        makeCylinderBetween(a.clone().setY(0.79), b.clone().setY(0.79), 0.015, mats.copper, 8);
+      });
+
+      buildWaveLine(new THREE.Vector3(-3.24, 0, -3.26), new THREE.Vector3(3.24, 0, -3.26), 0.125, 8, 1.48, 0.0);
+      buildWaveLine(new THREE.Vector3(3.26, 0, -3.24), new THREE.Vector3(3.26, 0, 3.24), 0.12, 8, 1.46, 1.4);
+      buildWaveLine(new THREE.Vector3(3.24, 0, 3.26), new THREE.Vector3(-3.24, 0, 3.26), 0.12, 8, 1.46, 2.3);
+      buildWaveLine(new THREE.Vector3(-3.26, 0, 3.24), new THREE.Vector3(-3.26, 0, -3.24), 0.125, 8, 1.48, 3.1);
+
+      const beamY = 2.62;
+      const beamCenterY = 2.44;
+      const diagonalA = makeLine([new THREE.Vector3(-3.2, beamY, -3.2), new THREE.Vector3(0, beamCenterY, 0), new THREE.Vector3(3.2, beamY, 3.2)], mats.cyanLine);
+      const diagonalB = makeLine([new THREE.Vector3(3.2, beamY, -3.2), new THREE.Vector3(0, beamCenterY, 0), new THREE.Vector3(-3.2, beamY, 3.2)], mats.cyanLine);
+      animated.cyanPulses.push(diagonalA, diagonalB);
+
+      const centerCore = sphere(0.095, mats.cyanCore, 0, beamCenterY + 0.05, 0, 1);
+      animated.mechanical.push({ object: centerCore, amp: 0.04, phase: 2.2, pulse: true });
+      const focusLight = new THREE.PointLight(0x2ffff1, 1.6, 6, 2);
+      focusLight.position.set(0, beamCenterY + 0.35, 0);
+      scene.add(focusLight);
+      animated.focusNodes.push(focusLight);
+
+      for (let i = 0; i < 5; i++) {
+        const p = sphere(0.035, mats.cyanCore, 0, beamCenterY + 0.08, 0, 1);
+        animated.laserParticles.push({ mesh: p, route: i % 4, offset: i / 5, speed: 0.08 + i * 0.012 });
+      }
+    }
+
+    function buildBackMachine() {
+      const tower = new THREE.Group();
+      tower.position.set(0, 0.3, -4.62);
+      root.add(tower);
+      box(1.25, 0.2, 1.05, mats.blackMetal, 0, 0.1, 0, tower);
+      cyl(0.56, 0.66, 1.05, 12, mats.blackFacet, 0, 0.72, 0, tower);
+      const ringA = torus(0.68, 0.09, 10, 56, mats.darkCopper, tower);
+      ringA.position.set(0, 1.58, 0);
+      ringA.rotation.y = Math.PI / 2;
+      const ringB = torus(0.46, 0.025, 8, 48, mats.cyanGlass, tower);
+      ringB.position.set(0, 1.58, 0);
+      ringB.rotation.y = Math.PI / 2;
+      const star = new THREE.Group();
+      tower.add(star);
+      star.position.set(0, 1.58, 0);
+      for (let i = 0; i < 8; i++) {
+        const spoke = makeCylinderBetween(
+          new THREE.Vector3(0, 0, 0),
+          new THREE.Vector3(Math.cos(i * TAU / 8) * 0.45, Math.sin(i * TAU / 8) * 0.45, 0),
+          0.014,
+          i % 2 ? mats.copper : mats.cyanCore,
+          6,
+          star
+        );
+        spoke.rotation.y = Math.PI / 2;
+      }
+      animated.rings.push({ object: ringA, speed: 0.48, axis: "x" });
+      animated.rings.push({ object: ringB, speed: -1.2, axis: "z" });
+      animated.rings.push({ object: star, speed: 0.88, axis: "z" });
+
+      const verticalBeam = makeCylinderBetween(new THREE.Vector3(0, 1.0, -4.62), new THREE.Vector3(0, 3.0, -4.62), 0.025, mats.cyanGlass, 10);
+      animated.mechanical.push({ object: verticalBeam, amp: 0.1, phase: 1.5, pulse: true });
+    }
+
+    function buildSupportNetwork() {
+      buildRailArray(-4.68, -4.1, -1.1, 5, 1);
+      buildRailArray(-4.68, 1.1, 4.1, 5, -1);
+      buildRailArray(4.72, -4.1, -1.1, 4, 1);
+      buildRailArray(4.72, 1.1, 4.1, 4, -1);
+      buildSideRailArray(-4.85, -2.1, 2.2, 5, 1);
+      buildSideRailArray(4.85, -2.1, 2.2, 5, -1);
+
+      const postCoords = [
+        [-5.22, -4.72], [5.22, -4.72], [-5.22, 4.72], [5.22, 4.72],
+        [-5.28, 0], [5.28, 0], [0, -5.32], [0, 5.32]
+      ];
+      postCoords.forEach(([x, z], i) => {
+        cyl(0.18, 0.24, 0.56, 8, mats.blackMetal, x, 0.58, z);
+        const spire = sphere(0.28, i % 2 ? mats.blackFacet : mats.silverFacet, x, 1.12, z, 0);
+        spire.scale.set(0.76, 1.45, 0.76);
+        if (i % 3 === 0) {
+          const cap = sphere(0.065, mats.cyanCore, x, 1.54, z, 1);
+          animated.mechanical.push({ object: cap, amp: 0.08, phase: i * 0.55, pulse: true });
+        } else {
+          sphere(0.055, mats.darkCopper, x, 1.48, z, 0);
+        }
+      });
+
+      for (let i = 0; i < 4; i++) {
+        const angle = Math.PI / 4 + i * Math.PI / 2;
+        const x = Math.cos(angle) * 5.56;
+        const z = Math.sin(angle) * 5.56;
+        const dome = sphere(0.55, mats.blackFacet, x, 0.55, z, 1);
+        dome.scale.set(1.2, 0.78, 1.2);
+        dome.rotation.y = angle;
+        cyl(0.13, 0.16, 0.18, 10, mats.darkCopper, x, 1.02, z);
+      }
+    }
+
+    function buildFog() {
+      const count = 360;
+      const positions = new Float32Array(count * 3);
+      const data = [];
+      for (let i = 0; i < count; i++) {
+        const backBias = Math.random() < 0.72;
+        const x = (Math.random() - 0.5) * 13.4;
+        const z = backBias ? -2.8 - Math.random() * 5.2 : (Math.random() - 0.5) * 12.5;
+        const y = 0.65 + Math.random() * 2.8;
+        positions[i * 3 + 0] = x;
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = z;
+        data.push({
+          x,
+          y,
+          z,
+          phase: Math.random() * TAU,
+          drift: 0.12 + Math.random() * 0.26,
+          lift: 0.03 + Math.random() * 0.1
+        });
+      }
+      const geom = new THREE.BufferGeometry();
+      geom.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+      const points = new THREE.Points(geom, mats.fogPoint);
+      points.frustumCulled = false;
+      scene.add(points);
+      animated.fog = points;
+      animated.fogData = data;
+    }
+
+    function buildLighting() {
+      const hemi = new THREE.HemisphereLight(0x8ec9c9, 0x030305, 0.52);
+      scene.add(hemi);
+
+      const key = new THREE.DirectionalLight(0xdce7e3, 3.1);
+      key.position.set(-4.5, 8.8, 5.2);
+      key.castShadow = true;
+      key.shadow.mapSize.set(2048, 2048);
+      key.shadow.camera.left = -8.5;
+      key.shadow.camera.right = 8.5;
+      key.shadow.camera.top = 8.5;
+      key.shadow.camera.bottom = -8.5;
+      key.shadow.camera.near = 1;
+      key.shadow.camera.far = 22;
+      scene.add(key);
+
+      const rim = new THREE.DirectionalLight(0x14fff0, 1.55);
+      rim.position.set(6, 4.2, -5.4);
+      scene.add(rim);
+
+      const warm = new THREE.PointLight(0xff8d45, 1.55, 10, 2);
+      warm.position.set(-5.4, 2.1, -4.8);
+      scene.add(warm);
+
+      const cyanFloor = [
+        [-4.2, 0.55, -3.6], [4.2, 0.55, -3.6],
+        [-4.2, 0.55, 3.6], [4.2, 0.55, 3.6],
+        [0, 0.7, 0]
+      ];
+      cyanFloor.forEach((p, i) => {
+        const light = new THREE.PointLight(0x13fff0, i === 4 ? 1.4 : 0.72, i === 4 ? 8 : 5.5, 2);
+        light.position.set(...p);
+        scene.add(light);
+        animated.focusNodes.push(light);
+      });
+    }
+
+    function createScene() {
+      buildLighting();
+      buildPlatform();
+      buildSaddle();
+      buildInterferometer();
+      buildBackMachine();
+      buildSupportNetwork();
+      buildFog();
+
+      root.rotation.y = -0.06;
+    }
+
+    function updateSaddle(t) {
+      const mesh = animated.saddle;
+      const glowMesh = animated.saddleGlow;
+      const pos = mesh.geometry.attributes.position;
+      const colorAttr = mesh.geometry.attributes.color;
+      const glowPos = glowMesh.geometry.attributes.position;
+      const glowColorAttr = glowMesh.geometry.attributes.color;
+      const simT = t * 1.55;
+      const prevT = simT - 0.035;
+      for (let i = 0; i < animated.saddleBase.length; i++) {
+        const base = animated.saddleBase[i];
+        const y = surfaceHeight(base.x, base.z, simT);
+        const prevY = surfaceHeight(base.x, base.z, prevT);
+        const velocity = Math.abs(y - prevY) / 0.035;
+        pos.setY(i, y);
+        graphVertexColor(base.x, base.z, y, velocity, simT, graphColorScratch);
+        colorAttr.setXYZ(i, graphColorScratch.r, graphColorScratch.g, graphColorScratch.b);
+        glowPos.setY(i, y);
+        graphGlowColor(base.x, base.z, y, velocity, simT, graphColorScratch);
+        glowColorAttr.setXYZ(i, graphColorScratch.r, graphColorScratch.g, graphColorScratch.b);
+      }
+      pos.needsUpdate = true;
+      colorAttr.needsUpdate = true;
+      glowPos.needsUpdate = true;
+      glowColorAttr.needsUpdate = true;
+      mesh.geometry.computeVertexNormals();
+      if (mesh.userData.wire && (!mesh.userData.lastWireUpdate || t - mesh.userData.lastWireUpdate > 0.14)) {
+        mesh.remove(mesh.userData.wire);
+        mesh.userData.wire.geometry.dispose();
+        mesh.userData.wire = new THREE.LineSegments(new THREE.WireframeGeometry(mesh.geometry), mats.wire);
+        mesh.add(mesh.userData.wire);
+        mesh.userData.lastWireUpdate = t;
+      }
+
+      for (let lineIndex = 0; lineIndex < animated.saddleLines.length; lineIndex++) {
+        const item = animated.saddleLines[lineIndex];
+        const lp = item.line.geometry.attributes.position;
+        for (let i = 0; i < item.coords.length; i++) {
+          const c = item.coords[i];
+          const y = surfaceHeight(c.x, c.z, simT + lineIndex * 0.08) + c.lift;
+          lp.setXYZ(i, c.x, y, c.z);
+        }
+        const mode = surfaceMode(simT + lineIndex * 0.06);
+        graphColorA.copy(graphModeColors[mode.index]).lerp(graphModeColors[mode.next], mode.mix);
+        item.line.material.color.copy(graphColorA).lerp(lineIndex % 3 ? graphPalette.cyan : graphPalette.amber, 0.28);
+        item.line.material.opacity = 0.34 + 0.34 * Math.abs(Math.sin(t * 3.8 + lineIndex * 0.7));
+        lp.needsUpdate = true;
+      }
+
+      for (const glyph of animated.tensorGlyphs) {
+        const phase = simT + glyph.phase;
+        const dx = 0.22 * Math.cos(phase * 1.7) + 0.18;
+        const dz = 0.22 * Math.sin(phase * 1.3) + 0.1;
+        const a = new THREE.Vector3(
+          glyph.x,
+          surfaceHeight(glyph.x, glyph.z, simT) + 0.22,
+          glyph.z
+        );
+        const b = new THREE.Vector3(
+          glyph.x + dx,
+          surfaceHeight(glyph.x + dx, glyph.z + dz, simT + 0.06) + 0.4,
+          glyph.z + dz
+        );
+        orientCylinderBetween(glyph.object, a, b);
+      }
+
+    }
+
+    function updateWaveLines(t) {
+      for (const w of animated.waveLines) {
+        if (w.kind !== "sine") continue;
+        const pos = w.line.geometry.attributes.position;
+        const softPos = w.soft.geometry.attributes.position;
+        const dir = new THREE.Vector3().subVectors(w.end, w.start);
+        const axis = Math.abs(dir.x) > Math.abs(dir.z) ? "x" : "z";
+        const normal = axis === "x" ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(1, 0, 0);
+        for (let i = 0; i <= 96; i++) {
+          const u = i / 96;
+          const p = new THREE.Vector3().lerpVectors(w.start, w.end, u);
+          const phase = u * w.cycles * TAU + w.phase - t * 3.1;
+          p.addScaledVector(normal, Math.sin(phase) * w.amp);
+          p.y = w.y + Math.cos(phase) * w.amp * 0.38;
+          pos.setXYZ(i, p.x, p.y, p.z);
+          softPos.setXYZ(i, p.x, p.y, p.z);
+        }
+        pos.needsUpdate = true;
+        softPos.needsUpdate = true;
+        w.line.material.opacity = 0.82 + 0.16 * Math.sin(t * 4 + w.phase);
+      }
+    }
+
+    function updatePendulums(t) {
+      for (const p of animated.pendulums) {
+        const swing = Math.sin(t * 1.45 + p.phase) * p.amp;
+        const sideVector = Math.abs(p.pivot.z) > Math.abs(p.pivot.x)
+          ? new THREE.Vector3(1, 0, 0)
+          : new THREE.Vector3(0, 0, 1);
+        const offset = sideVector.multiplyScalar(swing * p.side);
+        const target = p.pivot.clone().add(offset);
+        target.y -= p.length;
+        p.crystal.position.copy(target);
+        p.crystal.rotation.z = swing * 1.1;
+        p.crystal.rotation.x = -swing * 0.55;
+        if (p.bob) {
+          p.bob.position.copy(p.pivot.clone().lerp(target, 0.48));
+        }
+      }
+    }
+
+    function updateParticles(t) {
+      const routeY = 2.58;
+      const routes = [
+        [new THREE.Vector3(-3.28, routeY, -3.28), new THREE.Vector3(3.28, routeY, -3.28)],
+        [new THREE.Vector3(3.28, routeY, -3.28), new THREE.Vector3(3.28, routeY, 3.28)],
+        [new THREE.Vector3(3.28, routeY, 3.28), new THREE.Vector3(-3.28, routeY, 3.28)],
+        [new THREE.Vector3(-3.28, routeY, 3.28), new THREE.Vector3(-3.28, routeY, -3.28)]
+      ];
+      for (const p of animated.laserParticles) {
+        const u = (t * p.speed + p.offset) % 1;
+        const route = routes[p.route];
+        p.mesh.position.lerpVectors(route[0], route[1], u);
+        p.mesh.scale.setScalar(0.82 + 0.32 * Math.sin(t * 8 + p.offset * TAU));
+      }
+    }
+
+    function updateFog(t) {
+      if (!animated.fog) return;
+      const pos = animated.fog.geometry.attributes.position;
+      for (let i = 0; i < animated.fogData.length; i++) {
+        const p = animated.fogData[i];
+        let x = p.x + Math.sin(t * p.drift + p.phase) * 0.7;
+        let z = p.z + Math.cos(t * p.drift * 0.8 + p.phase) * 0.45;
+        let y = p.y + Math.sin(t * p.lift + p.phase) * 0.18;
+        pos.setXYZ(i, x, y, z);
+      }
+      pos.needsUpdate = true;
+    }
+
+    function updateMechanical(t) {
+      for (const r of animated.rings) {
+        if (r.axis === "x") r.object.rotation.x += r.speed * 0.01;
+        if (r.axis === "y") r.object.rotation.y += r.speed * 0.01;
+        if (r.axis === "z") r.object.rotation.z += r.speed * 0.01;
+      }
+      for (const m of animated.mechanical) {
+        if (m.pulse) {
+          const s = 1 + Math.sin(t * 4.4 + m.phase) * 0.08;
+          m.object.scale.setScalar(s);
+        } else {
+          m.object.position.y += Math.sin(t * 2.2 + m.phase) * m.amp * 0.004;
+        }
+      }
+      animated.focusNodes.forEach((l, i) => {
+        l.intensity *= 0.985;
+        l.intensity += (0.9 + 0.32 * Math.sin(t * 2.7 + i * 0.8)) * 0.015;
+      });
+      for (let i = 0; i < animated.cyanPulses.length; i++) {
+        animated.cyanPulses[i].material.opacity = 0.62 + 0.32 * Math.sin(t * 3.2 + i * 1.7);
+      }
+    }
+
+    createScene();
+
+    function render() {
+      const t = clock.getElapsedTime();
+      updateSaddle(t);
+      updateWaveLines(t);
+      updatePendulums(t);
+      updateParticles(t);
+      updateFog(t);
+      updateMechanical(t);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    renderer.setAnimationLoop(render);
+
+    window.addEventListener("resize", () => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+      renderer.setSize(width, height);
+    });
+  </script>
+</body>
+</html>
