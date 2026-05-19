@@ -68,6 +68,47 @@
       gap: 18px;
     }
 
+    .amplify {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin: 0 0 18px;
+      padding: 18px;
+      background: rgba(255, 255, 255, 0.055);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .amplify strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 1rem;
+    }
+
+    .amplify p {
+      font-size: 0.94rem;
+    }
+
+    .amplify a {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      min-height: 42px;
+      padding: 0 14px;
+      color: #071014;
+      background: linear-gradient(90deg, var(--cyan), var(--gold));
+      border-radius: 999px;
+      font-weight: 780;
+      text-decoration: none;
+      box-shadow: 0 16px 42px rgba(49, 217, 239, 0.16);
+    }
+
+    .amplify a:focus-visible,
+    .amplify a:hover {
+      filter: brightness(1.08);
+    }
+
     .tile {
       display: grid;
       min-height: 340px;
@@ -188,6 +229,11 @@
         grid-template-columns: 1fr;
       }
 
+      .amplify {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
       .tile {
         min-height: 300px;
       }
@@ -200,6 +246,14 @@
       <h1>Kinetic Low Poly Mechanisms</h1>
       <p>Two standalone Three.js studies with low-poly machinery, layered gears, cinematic lighting, and subtle mechanical motion.</p>
     </header>
+
+    <aside class="amplify" aria-label="EchoHive Get Amplified">
+      <div>
+        <strong>Make the signal impossible to ignore.</strong>
+        <p>These studies echo the energy behind EchoHive Get Amplified: vivid ideas, stronger presence, and digital work with momentum.</p>
+      </div>
+      <a href="https://www.echohive.ai/get-amplified">Get Amplified</a>
+    </aside>
 
     <section class="grid" aria-label="Mechanism demos">
       <a class="tile" href="./low-poly-chromatic-clockwork-turbine.html">
