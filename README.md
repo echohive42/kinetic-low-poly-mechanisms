@@ -9,4 +9,6 @@ Open `index.html` to choose between the demos. Each mechanism is contained in a 
 
 ## Get Amplified
 
-Built in the spirit of [EchoHive Get Amplified](https://www.echohive.ai/get-amplified): sharper ideas, richer creative systems, and work that feels alive the moment it lands. If these kinetic studies catch your eye, Get Amplified is the next step toward turning that kind of visual energy into a stronger presence, a clearer story, and a more magnetic digital experience.
+[EchoHive Get Amplified](https://www.echohive.ai/get-amplified) is about mastering AI tools before they become table stakes: Claude Code, Cursor, Codex, agent workflows, automation loops, applied research with code, and creative building systems.
+
+The point is not to let AI replace your thinking. It is to become more capable with it: faster at shipping, sharper at research, more fluent with modern tooling, and better prepared for the age of AI. If these demos make you curious about building with AI instead of merely watching it happen, Get Amplified is the path into that workflow.
