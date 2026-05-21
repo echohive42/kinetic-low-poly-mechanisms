@@ -1,12 +1,13 @@
 # Kinetic Low Poly Mechanisms
 
-Three standalone Three.js mechanism studies:
+Four standalone Three.js mechanism studies:
 
 - `low-poly-chromatic-clockwork-turbine.html`
 - `low-poly-kinetic-gear-bridge.html`
 - `low-poly-relativistic-wave-interferometer.html`
+- `low-poly-nanomachine-experiment.html`
 
-Open `index.html` to choose between the demos. Each mechanism is contained in a single HTML file and includes camera controls, lighting, low-poly geometry, and subtle mechanical animation.
+Open `index.html` to choose between the demos. Each mechanism is contained in a single HTML file and includes camera controls, lighting, low-poly geometry, and subtle mechanical animation. The newest nanomachine study adds a high-resolution morphing wave core with fluorescent mathematical color bands.
 
 ## Get Amplified
 

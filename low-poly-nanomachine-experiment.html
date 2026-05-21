@@ -1,0 +1,1093 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Low Poly Nanomachine Experiment</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 44%, rgba(20, 255, 238, 0.18), transparent 24%),
+        radial-gradient(circle at 42% 56%, rgba(255, 88, 36, 0.13), transparent 18%),
+        radial-gradient(circle at 78% 12%, rgba(255, 42, 191, 0.1), transparent 22%),
+        linear-gradient(180deg, #020406 0%, #071016 52%, #020305 100%);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+    }
+
+    canvas:active { cursor: grabbing; }
+
+    .vignette,
+    .grain,
+    .micro-glow {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .vignette {
+      background:
+        radial-gradient(circle at 50% 46%, transparent 0%, transparent 55%, rgba(0, 0, 0, 0.72) 100%),
+        linear-gradient(180deg, rgba(0, 0, 0, 0.28), transparent 36%, rgba(0, 0, 0, 0.34));
+    }
+
+    .grain {
+      opacity: 0.055;
+      mix-blend-mode: screen;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+      background-size: 3px 3px;
+      mask-image: radial-gradient(circle at center, black 0%, black 70%, transparent 100%);
+    }
+
+    .micro-glow {
+      opacity: 0.7;
+      mix-blend-mode: screen;
+      background:
+        radial-gradient(circle at 50% 51%, rgba(15, 255, 232, 0.13), transparent 21%),
+        radial-gradient(circle at 50% 62%, rgba(255, 101, 36, 0.1), transparent 17%),
+        radial-gradient(circle at 35% 30%, rgba(121, 255, 82, 0.06), transparent 18%);
+    }
+  </style>
+</head>
+<body>
+  <div class="micro-glow" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x02070a);
+    scene.fog = new THREE.FogExp2(0x061116, 0.021);
+
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 140);
+    camera.position.set(8.55, 7.05, 9.55);
+    camera.lookAt(0, 1.62, 0);
+
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: false,
+      powerPreference: "high-performance"
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.14;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.prepend(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1.48, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.enablePan = true;
+    controls.screenSpacePanning = true;
+    controls.enableZoom = true;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.18;
+    controls.minDistance = 6.2;
+    controls.maxDistance = 20;
+    controls.minPolarAngle = Math.PI * 0.16;
+    controls.maxPolarAngle = Math.PI * 0.48;
+    controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+    controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
+    controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+    controls.touches.ONE = THREE.TOUCH.ROTATE;
+    controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+
+    const root = new THREE.Group();
+    root.rotation.y = -0.08;
+    scene.add(root);
+
+    const clock = new THREE.Clock();
+    const TAU = Math.PI * 2;
+    const up = new THREE.Vector3(0, 1, 0);
+    const scratch = new THREE.Vector3();
+    const curveScratchA = new THREE.Vector3();
+    const curveScratchB = new THREE.Vector3();
+    const colorA = new THREE.Color();
+    const colorB = new THREE.Color();
+
+    const palette = {
+      cyan: new THREE.Color(0x18fff4),
+      blue: new THREE.Color(0x3d80ff),
+      magenta: new THREE.Color(0xff31d2),
+      lime: new THREE.Color(0x90ff4e),
+      orange: new THREE.Color(0xff6a2a),
+      amber: new THREE.Color(0xffc06a),
+      graphite: new THREE.Color(0x081116)
+    };
+
+    const mats = {
+      obsidian: new THREE.MeshStandardMaterial({
+        color: 0x071016,
+        roughness: 0.38,
+        metalness: 0.7,
+        envMapIntensity: 0.7
+      }),
+      tileA: new THREE.MeshStandardMaterial({
+        color: 0x0a1419,
+        roughness: 0.34,
+        metalness: 0.65
+      }),
+      tileB: new THREE.MeshStandardMaterial({
+        color: 0x111d22,
+        roughness: 0.42,
+        metalness: 0.58
+      }),
+      blackFacet: new THREE.MeshStandardMaterial({
+        color: 0x13222a,
+        roughness: 0.44,
+        metalness: 0.78,
+        flatShading: true
+      }),
+      graphite: new THREE.MeshStandardMaterial({
+        color: 0x071116,
+        roughness: 0.32,
+        metalness: 0.86
+      }),
+      copper: new THREE.MeshStandardMaterial({
+        color: 0xc87b48,
+        roughness: 0.23,
+        metalness: 0.86
+      }),
+      darkCopper: new THREE.MeshStandardMaterial({
+        color: 0x6a3a24,
+        roughness: 0.35,
+        metalness: 0.88
+      }),
+      silver: new THREE.MeshStandardMaterial({
+        color: 0xb8c5c6,
+        roughness: 0.28,
+        metalness: 0.74,
+        flatShading: true
+      }),
+      cyanCore: new THREE.MeshStandardMaterial({
+        color: 0x16fff0,
+        emissive: 0x00e8dc,
+        emissiveIntensity: 1.35,
+        roughness: 0.12,
+        metalness: 0.08,
+        toneMapped: false
+      }),
+      orangeCore: new THREE.MeshStandardMaterial({
+        color: 0xff7140,
+        emissive: 0xff3b19,
+        emissiveIntensity: 1.4,
+        roughness: 0.14,
+        metalness: 0.1,
+        toneMapped: false
+      }),
+      magentaCore: new THREE.MeshStandardMaterial({
+        color: 0xff38d4,
+        emissive: 0xff21c0,
+        emissiveIntensity: 1.1,
+        roughness: 0.14,
+        metalness: 0.08,
+        toneMapped: false
+      }),
+      limeCore: new THREE.MeshStandardMaterial({
+        color: 0x9cff55,
+        emissive: 0x63ff27,
+        emissiveIntensity: 1.0,
+        roughness: 0.16,
+        metalness: 0.06,
+        toneMapped: false
+      }),
+      cyanGlass: new THREE.MeshStandardMaterial({
+        color: 0x14e8dd,
+        emissive: 0x00b8ad,
+        emissiveIntensity: 0.55,
+        roughness: 0.05,
+        metalness: 0.04,
+        transparent: true,
+        opacity: 0.26,
+        depthWrite: false,
+        toneMapped: false
+      }),
+      glassFacet: new THREE.MeshStandardMaterial({
+        color: 0x6ff9ef,
+        emissive: 0x006f68,
+        emissiveIntensity: 0.46,
+        roughness: 0.12,
+        metalness: 0.18,
+        transparent: true,
+        opacity: 0.24,
+        depthWrite: false,
+        flatShading: true,
+        side: THREE.DoubleSide
+      }),
+      waveCore: new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        roughness: 0.22,
+        metalness: 0.16,
+        emissive: 0x071817,
+        emissiveIntensity: 0.68,
+        transparent: true,
+        opacity: 0.94,
+        flatShading: true,
+        side: THREE.DoubleSide,
+        vertexColors: true
+      }),
+      lineCyan: new THREE.LineBasicMaterial({
+        color: 0x18fff4,
+        transparent: true,
+        opacity: 0.92,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false
+      }),
+      lineSoft: new THREE.LineBasicMaterial({
+        color: 0x0be8dd,
+        transparent: true,
+        opacity: 0.28,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false
+      }),
+      lineMagenta: new THREE.LineBasicMaterial({
+        color: 0xff31d2,
+        transparent: true,
+        opacity: 0.74,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false
+      }),
+      lineOrange: new THREE.LineBasicMaterial({
+        color: 0xff7333,
+        transparent: true,
+        opacity: 0.76,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false
+      }),
+      lineLime: new THREE.LineBasicMaterial({
+        color: 0x8dff4c,
+        transparent: true,
+        opacity: 0.62,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false
+      }),
+      fogPoint: new THREE.PointsMaterial({
+        color: 0x9ce6e6,
+        size: 0.115,
+        transparent: true,
+        opacity: 0.06,
+        depthWrite: false
+      })
+    };
+
+    const animated = {
+      gears: [],
+      rings: [],
+      pistons: [],
+      molecules: [],
+      moleculeNodes: [],
+      curveLines: [],
+      curvePoints: [],
+      morphCore: null,
+      morphCoreBase: null,
+      nanoCore: null,
+      nanoCoreEdges: null,
+      topRotor: null,
+      fog: null,
+      fogData: [],
+      pulseLights: [],
+      energyNodes: []
+    };
+
+    function smoother(v) {
+      return v * v * v * (v * (v * 6 - 15) + 10);
+    }
+
+    function add(mesh, parent = root) {
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      parent.add(mesh);
+      return mesh;
+    }
+
+    function box(w, h, d, mat, x = 0, y = 0, z = 0, parent = root) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+      mesh.position.set(x, y, z);
+      return add(mesh, parent);
+    }
+
+    function cyl(rt, rb, h, seg, mat, x = 0, y = 0, z = 0, parent = root) {
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg, 1, false), mat);
+      mesh.position.set(x, y, z);
+      return add(mesh, parent);
+    }
+
+    function sphere(radius, mat, x = 0, y = 0, z = 0, detail = 1, parent = root) {
+      const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(radius, detail), mat);
+      mesh.position.set(x, y, z);
+      return add(mesh, parent);
+    }
+
+    function torus(major, tube, radial, tubular, mat, parent = root) {
+      const mesh = new THREE.Mesh(new THREE.TorusGeometry(major, tube, radial, tubular), mat);
+      return add(mesh, parent);
+    }
+
+    function makeLine(points, mat, parent = root) {
+      const geometry = new THREE.BufferGeometry().setFromPoints(points);
+      const line = new THREE.Line(geometry, mat.clone ? mat.clone() : mat);
+      parent.add(line);
+      return line;
+    }
+
+    function makeCylinderBetween(a, b, radius, mat, segments = 10, parent = root) {
+      const mid = scratch.copy(a).add(b).multiplyScalar(0.5).clone();
+      const dir = new THREE.Vector3().subVectors(b, a);
+      const length = dir.length();
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, length, segments, 1, false), mat);
+      mesh.userData.baseLength = length;
+      mesh.position.copy(mid);
+      mesh.quaternion.setFromUnitVectors(up, dir.normalize());
+      return add(mesh, parent);
+    }
+
+    function orientCylinderBetween(mesh, a, b) {
+      const dir = new THREE.Vector3().subVectors(b, a);
+      mesh.position.copy(a).add(b).multiplyScalar(0.5);
+      mesh.quaternion.setFromUnitVectors(up, dir.normalize());
+      mesh.scale.y = dir.length() / mesh.userData.baseLength;
+    }
+
+    function buildGear(radius, teeth, height, mat, x, y, z, parent = root, accentMat = mats.copper) {
+      const group = new THREE.Group();
+      group.position.set(x, y, z);
+      parent.add(group);
+
+      const body = cyl(radius, radius, height, teeth * 2, mat, 0, 0, 0, group);
+      const hub = cyl(radius * 0.36, radius * 0.42, height * 1.24, 12, mats.darkCopper, 0, 0, 0, group);
+      const core = cyl(radius * 0.13, radius * 0.13, height * 1.36, 14, mats.cyanCore, 0, 0, 0, group);
+      body.castShadow = hub.castShadow = core.castShadow = true;
+
+      for (let i = 0; i < teeth; i++) {
+        const a = i / teeth * TAU;
+        const tooth = box(radius * 0.22, height * 1.1, radius * 0.24, i % 3 ? accentMat : mats.silver, Math.cos(a) * radius * 1.08, 0, Math.sin(a) * radius * 1.08, group);
+        tooth.rotation.y = -a;
+      }
+
+      animated.gears.push({ object: group, speed: 0.24 + radius * 0.18, phase: x + z });
+      return group;
+    }
+
+    function buildPlatform() {
+      box(12.8, 0.32, 12.8, mats.obsidian, 0, -0.22, 0);
+      box(11.6, 0.2, 11.6, mats.graphite, 0, 0.02, 0);
+
+      const tileSize = 0.82;
+      const count = 13;
+      for (let ix = 0; ix < count; ix++) {
+        for (let iz = 0; iz < count; iz++) {
+          const x = (ix - (count - 1) / 2) * tileSize;
+          const z = (iz - (count - 1) / 2) * tileSize;
+          const mat = (ix + iz) % 2 ? mats.tileA : mats.tileB;
+          const tile = box(tileSize * 0.93, 0.03, tileSize * 0.93, mat, x, 0.22, z);
+          tile.receiveShadow = true;
+        }
+      }
+
+      for (let i = 0; i < 4; i++) {
+        const g = new THREE.Group();
+        g.rotation.y = i * Math.PI / 2;
+        root.add(g);
+        box(10.8, 0.13, 0.12, mats.blackFacet, 0, 0.5, -5.78, g);
+        box(10.6, 0.05, 0.06, mats.copper, 0, 0.65, -5.65, g);
+        box(8.8, 0.035, 0.05, mats.cyanCore, 0, 0.71, -5.47, g).castShadow = false;
+      }
+
+      const base = cyl(1.16, 1.36, 0.32, 18, mats.blackFacet, 0, 0.46, 0);
+      const amberPlate = cyl(0.78, 0.86, 0.08, 20, mats.darkCopper, 0, 0.66, 0);
+      const innerWell = cyl(0.42, 0.46, 0.12, 18, mats.orangeCore, 0, 0.78, 0);
+      innerWell.castShadow = false;
+
+      for (let i = 0; i < 8; i++) {
+        const a = i * TAU / 8;
+        makeCylinderBetween(
+          new THREE.Vector3(Math.cos(a) * 0.65, 0.72, Math.sin(a) * 0.65),
+          new THREE.Vector3(Math.cos(a) * 1.08, 0.72, Math.sin(a) * 1.08),
+          0.018,
+          i % 2 ? mats.copper : mats.cyanCore,
+          8
+        );
+      }
+
+      buildGear(0.72, 18, 0.16, mats.blackFacet, -1.55, 0.43, 1.24);
+      buildGear(0.58, 16, 0.14, mats.darkCopper, -0.52, 0.42, 1.82, root, mats.silver);
+      buildGear(0.66, 18, 0.16, mats.blackFacet, 1.42, 0.42, 1.28, root, mats.copper);
+      buildGear(0.44, 14, 0.12, mats.darkCopper, 0.58, 0.38, 2.03, root, mats.silver);
+
+      for (let i = 0; i < 12; i++) {
+        const a = i * TAU / 12;
+        const inner = new THREE.Vector3(Math.cos(a) * 1.68, 0.78, Math.sin(a) * 1.68);
+        const outer = new THREE.Vector3(Math.cos(a) * 4.78, 0.78, Math.sin(a) * 4.78);
+        const mid = new THREE.Vector3(Math.cos(a) * 2.82, 0.84, Math.sin(a) * 2.82);
+        const rail = makeCylinderBetween(inner, outer, i % 3 === 0 ? 0.018 : 0.013, i % 2 ? mats.copper : mats.cyanCore, 8);
+        rail.castShadow = false;
+        const nodeMat = i % 4 === 0 ? mats.magentaCore : (i % 4 === 1 ? mats.limeCore : (i % 4 === 2 ? mats.orangeCore : mats.cyanCore));
+        const node = sphere(0.075, nodeMat, mid.x, mid.y, mid.z, 1);
+        node.castShadow = false;
+        animated.energyNodes.push({ object: node, phase: i * 0.42, radius: 0.055 });
+        if (i % 2 === 0) {
+          const relay = torus(0.18, 0.012, 7, 32, mats.cyanGlass);
+          relay.position.copy(mid);
+          relay.rotation.x = Math.PI / 2;
+          relay.rotation.z = a;
+          animated.rings.push({ object: relay, axis: "z", speed: 0.9 + i * 0.03 });
+        }
+      }
+
+      const frontModule = new THREE.Group();
+      frontModule.position.set(0, 0.38, 3.45);
+      root.add(frontModule);
+      cyl(0.46, 0.58, 0.42, 12, mats.blackFacet, 0, 0.22, 0, frontModule);
+      sphere(0.22, mats.cyanCore, 0, 0.58, 0, 1, frontModule).castShadow = false;
+      const frontRing = torus(0.42, 0.026, 8, 48, mats.cyanGlass, frontModule);
+      frontRing.rotation.x = Math.PI / 2;
+      frontRing.position.y = 0.58;
+      animated.rings.push({ object: frontRing, axis: "z", speed: 1.3 });
+
+      for (let i = 0; i < 4; i++) {
+        const a = Math.PI / 4 + i * Math.PI / 2;
+        const x = Math.cos(a) * 4.76;
+        const z = Math.sin(a) * 4.76;
+        const plinth = cyl(0.46, 0.62, 0.46, 10, mats.blackFacet, x, 0.5, z);
+        const crystal = sphere(0.36, i % 2 ? mats.cyanGlass : mats.glassFacet, x, 0.98, z, 1);
+        crystal.scale.set(0.82, 1.24, 0.82);
+        const orb = sphere(0.08, i % 2 ? mats.orangeCore : mats.cyanCore, x, 1.05, z, 1);
+        orb.castShadow = false;
+        animated.energyNodes.push({ object: orb, phase: i * 0.8, radius: 0.06 });
+        plinth.receiveShadow = true;
+      }
+    }
+
+    function buildCentralCore() {
+      const column = cyl(0.15, 0.18, 2.75, 12, mats.cyanGlass, 0, 1.88, 0);
+      column.castShadow = false;
+      const lowerNeedle = makeCylinderBetween(new THREE.Vector3(0, 0.82, 0), new THREE.Vector3(0, 1.35, 0), 0.035, mats.copper, 10);
+      const upperNeedle = makeCylinderBetween(new THREE.Vector3(0, 2.62, 0), new THREE.Vector3(0, 3.18, 0), 0.035, mats.copper, 10);
+
+      const diamond = new THREE.Mesh(new THREE.IcosahedronGeometry(0.96, 2), mats.glassFacet);
+      diamond.position.set(0, 1.86, 0);
+      diamond.scale.set(1.05, 1.35, 1.05);
+      diamond.castShadow = true;
+      diamond.receiveShadow = true;
+      root.add(diamond);
+      animated.nanoCore = diamond;
+
+      const edges = new THREE.LineSegments(
+        new THREE.EdgesGeometry(diamond.geometry),
+        new THREE.LineBasicMaterial({
+          color: 0x9dfff8,
+          transparent: true,
+          opacity: 0.58,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          toneMapped: false
+        })
+      );
+      edges.scale.copy(diamond.scale);
+      edges.position.copy(diamond.position);
+      root.add(edges);
+      animated.nanoCoreEdges = edges;
+
+      const core = sphere(0.1, mats.orangeCore, 0, 1.86, 0, 2);
+      core.castShadow = false;
+      animated.energyNodes.push({ object: core, phase: 3.1, radius: 0.02 });
+
+      const ringFrame = torus(1.34, 0.055, 10, 96, mats.cyanGlass);
+      ringFrame.position.set(0, 2.72, 0);
+      ringFrame.rotation.x = Math.PI / 2;
+      ringFrame.castShadow = false;
+      const ringFrame2 = torus(1.06, 0.035, 8, 80, mats.darkCopper);
+      ringFrame2.position.set(0, 2.72, 0);
+      ringFrame2.rotation.x = Math.PI / 2;
+      animated.rings.push({ object: ringFrame, axis: "z", speed: 0.7 });
+      animated.rings.push({ object: ringFrame2, axis: "z", speed: -0.35 });
+
+      const capGroup = new THREE.Group();
+      capGroup.position.set(0, 3.52, 0);
+      root.add(capGroup);
+      cyl(0.48, 0.62, 0.42, 12, mats.blackFacet, 0, 0, 0, capGroup);
+      cyl(0.72, 0.72, 0.16, 18, mats.darkCopper, 0, 0.28, 0, capGroup);
+      for (let i = 0; i < 8; i++) {
+        const a = i * TAU / 8;
+        const arm = makeCylinderBetween(
+          new THREE.Vector3(Math.cos(a) * 0.42, 0.3, Math.sin(a) * 0.42),
+          new THREE.Vector3(Math.cos(a) * 0.98, 0.3, Math.sin(a) * 0.98),
+          0.025,
+          i % 2 ? mats.copper : mats.silver,
+          8,
+          capGroup
+        );
+        const bead = sphere(0.06, i % 2 ? mats.orangeCore : mats.cyanCore, Math.cos(a) * 1.02, 0.3, Math.sin(a) * 1.02, 1, capGroup);
+        bead.castShadow = false;
+      }
+      animated.topRotor = capGroup;
+
+      for (let i = 0; i < 6; i++) {
+        const a = i * TAU / 6;
+        makeCylinderBetween(
+          new THREE.Vector3(Math.cos(a) * 1.18, 2.72, Math.sin(a) * 1.18),
+          new THREE.Vector3(Math.cos(a) * 0.72, 2.05, Math.sin(a) * 0.72),
+          0.018,
+          i % 2 ? mats.copper : mats.cyanCore,
+          8
+        );
+      }
+    }
+
+    function buildActuatorPair(side) {
+      const sign = side;
+      const group = new THREE.Group();
+      group.position.set(sign * 2.05, 1.26, -0.02);
+      group.rotation.y = sign * -0.38;
+      root.add(group);
+
+      const tower = new THREE.Group();
+      tower.position.set(sign * 0.4, 0.02, 0);
+      group.add(tower);
+      cyl(0.32, 0.42, 0.74, 10, mats.blackFacet, 0, 0.12, 0, tower);
+      cyl(0.22, 0.22, 0.52, 12, mats.darkCopper, 0, 0.68, 0, tower);
+      const cyanJoint = torus(0.36, 0.038, 8, 42, mats.cyanCore, tower);
+      cyanJoint.position.y = 0.78;
+      cyanJoint.rotation.x = Math.PI / 2;
+      animated.rings.push({ object: cyanJoint, axis: "z", speed: sign * 1.15 });
+
+      const shoulder = new THREE.Vector3(sign * 2.52, 2.04, 0);
+      const elbow = new THREE.Vector3(sign * 3.25, 2.66, -0.56);
+      const wrist = new THREE.Vector3(sign * 4.08, 2.28, -0.84);
+      const baseA = new THREE.Vector3(sign * 1.18, 2.72, 0);
+      makeCylinderBetween(baseA, shoulder, 0.034, mats.copper, 10);
+      makeCylinderBetween(shoulder, elbow, 0.062, mats.blackFacet, 8);
+      makeCylinderBetween(elbow, wrist, 0.056, mats.blackFacet, 8);
+      makeCylinderBetween(new THREE.Vector3(sign * 0.98, 2.7, 0.24), new THREE.Vector3(sign * 3.84, 2.18, -0.62), 0.018, mats.cyanCore, 8);
+
+      [shoulder, elbow, wrist].forEach((p, i) => {
+        const joint = sphere(0.24 - i * 0.02, i % 2 ? mats.silver : mats.blackFacet, p.x, p.y, p.z, 1);
+        const core = sphere(0.07, i % 2 ? mats.orangeCore : mats.cyanCore, p.x, p.y, p.z, 1);
+        core.castShadow = false;
+        animated.energyNodes.push({ object: core, phase: i + side, radius: 0.035 });
+      });
+
+      const barrel = new THREE.Group();
+      barrel.position.copy(wrist);
+      barrel.rotation.z = sign * Math.PI / 2;
+      root.add(barrel);
+      cyl(0.34, 0.34, 0.48, 14, mats.darkCopper, 0, 0, 0, barrel);
+      cyl(0.22, 0.22, 0.56, 12, mats.blackFacet, 0, 0.42, 0, barrel);
+      const lens = cyl(0.14, 0.16, 0.1, 16, mats.cyanCore, 0, 0.75, 0, barrel);
+      lens.castShadow = false;
+      const probe = makeCylinderBetween(
+        new THREE.Vector3(sign * 4.28, 2.18, -0.9),
+        new THREE.Vector3(sign * 5.08, 2.0, -1.05),
+        0.025,
+        mats.copper,
+        10
+      );
+      const tip = sphere(0.09, mats.orangeCore, sign * 5.18, 1.98, -1.08, 1);
+      tip.castShadow = false;
+
+      animated.pistons.push({
+        a: makeCylinderBetween(new THREE.Vector3(sign * 1.45, 1.52, 0.42), new THREE.Vector3(sign * 2.9, 2.2, -0.36), 0.022, mats.silver, 8),
+        start: new THREE.Vector3(sign * 1.45, 1.52, 0.42),
+        end: new THREE.Vector3(sign * 2.9, 2.2, -0.36),
+        phase: sign > 0 ? 0.2 : 1.4
+      });
+    }
+
+    function buildNanotube(side) {
+      const sign = side;
+      const group = new THREE.Group();
+      group.position.set(sign * 4.55, 1.7, 1.08);
+      group.rotation.z = sign * -0.3;
+      group.rotation.y = sign * -0.36;
+      group.scale.setScalar(0.82);
+      root.add(group);
+
+      const ringCount = 8;
+      const sides = 6;
+      const radius = 0.42;
+      const step = 0.42;
+      const nodes = [];
+
+      for (let i = 0; i < ringCount; i++) {
+        nodes[i] = [];
+        for (let j = 0; j < sides; j++) {
+          const a = j / sides * TAU + i * 0.28;
+          const p = new THREE.Vector3((i - (ringCount - 1) / 2) * step, Math.sin(a) * radius, Math.cos(a) * radius);
+          nodes[i][j] = p;
+          const mat = (j + i) % 4 === 0 ? mats.orangeCore : ((j + i) % 3 === 0 ? mats.cyanCore : mats.silver);
+          const n = sphere(0.055, mat, p.x, p.y, p.z, 1, group);
+          n.castShadow = false;
+          animated.moleculeNodes.push({ object: n, phase: i * 0.33 + j * 0.51, base: p.clone(), amp: 0.026 });
+        }
+      }
+
+      for (let i = 0; i < ringCount; i++) {
+        for (let j = 0; j < sides; j++) {
+          makeCylinderBetween(nodes[i][j], nodes[i][(j + 1) % sides], 0.012, mats.silver, 5, group).castShadow = false;
+          if (i < ringCount - 1) {
+            makeCylinderBetween(nodes[i][j], nodes[i + 1][(j + (i % 2)) % sides], 0.012, j % 2 ? mats.cyanGlass : mats.silver, 5, group).castShadow = false;
+          }
+        }
+      }
+
+      const collar = torus(0.62, 0.065, 10, 48, mats.darkCopper, group);
+      collar.position.x = -ringCount * step * 0.5 - 0.04;
+      collar.rotation.y = Math.PI / 2;
+      const collarGlow = torus(0.44, 0.022, 8, 44, mats.cyanCore, group);
+      collarGlow.position.copy(collar.position);
+      collarGlow.rotation.y = Math.PI / 2;
+      animated.rings.push({ object: collarGlow, axis: "x", speed: sign * 1.4 });
+
+      makeCylinderBetween(
+        new THREE.Vector3(sign * 1.04, 1.72, 0.18),
+        new THREE.Vector3(sign * 3.82, 1.72, 0.72),
+        0.032,
+        mats.copper,
+        10
+      );
+      makeCylinderBetween(
+        new THREE.Vector3(sign * 1.24, 1.54, -0.16),
+        new THREE.Vector3(sign * 3.72, 1.48, 0.62),
+        0.017,
+        mats.cyanCore,
+        8
+      ).castShadow = false;
+    }
+
+    function buildMoleculeCluster(x, y, z, scale, seed) {
+      const group = new THREE.Group();
+      group.position.set(x, y, z);
+      group.scale.setScalar(scale);
+      root.add(group);
+      const nodes = [];
+      const count = 8 + (seed % 5);
+      for (let i = 0; i < count; i++) {
+        const a = i / count * TAU + seed * 0.37;
+        const r = 0.42 + 0.16 * Math.sin(i * 1.7 + seed);
+        const p = new THREE.Vector3(Math.cos(a) * r, Math.sin(i * 1.3 + seed) * 0.28, Math.sin(a) * r);
+        nodes.push(p);
+        const mat = i % 4 === 0 ? mats.orangeCore : (i % 3 === 0 ? mats.limeCore : mats.cyanCore);
+        const n = sphere(i % 4 === 0 ? 0.07 : 0.055, mat, p.x, p.y, p.z, 1, group);
+        n.castShadow = false;
+        animated.moleculeNodes.push({ object: n, phase: seed + i * 0.6, base: p.clone(), amp: 0.04 });
+      }
+      for (let i = 0; i < nodes.length; i++) {
+        makeCylinderBetween(nodes[i], nodes[(i + 1) % nodes.length], 0.01, i % 2 ? mats.cyanGlass : mats.silver, 5, group).castShadow = false;
+        if (i % 2 === 0) {
+          makeCylinderBetween(nodes[i], nodes[(i + 3) % nodes.length], 0.008, mats.cyanGlass, 5, group).castShadow = false;
+        }
+      }
+      animated.molecules.push({ object: group, phase: seed * 0.4, speed: 0.11 + seed * 0.012 });
+    }
+
+    function curvePoint(mode, u, t, out) {
+      const a = u * TAU;
+      if (mode === 0) {
+        out.set(
+          Math.sin(3 * a + t * 1.2) * 0.82,
+          Math.cos(4 * a - t * 0.9) * 0.64,
+          Math.sin(5 * a + t * 0.7) * 0.82
+        );
+      } else if (mode === 1) {
+        out.set(
+          (Math.sin(a) + 2 * Math.sin(2 * a)) * 0.28,
+          (Math.cos(a) - 2 * Math.cos(2 * a)) * 0.24,
+          -Math.sin(3 * a + t * 0.8) * 0.68
+        );
+      } else if (mode === 2) {
+        const r = 0.48 + 0.32 * Math.cos(6 * a + t * 1.1);
+        out.set(
+          Math.cos(a * 2 + t * 0.25) * r,
+          Math.sin(3 * a + t * 0.85) * 0.58,
+          Math.sin(a * 2 + t * 0.25) * r
+        );
+      } else {
+        const denom = 1 + Math.sin(a) * Math.sin(a);
+        out.set(
+          Math.cos(a) / denom * 0.92,
+          Math.sin(2 * a + t * 1.15) * 0.44,
+          Math.sin(a) * Math.cos(a) / denom * 1.08
+        );
+      }
+      return out;
+    }
+
+    function mixedCurvePoint(u, t, out) {
+      const rawMode = (t * 0.18) % 4;
+      const modeA = Math.floor(rawMode);
+      const modeB = (modeA + 1) % 4;
+      const mix = smoother(rawMode - modeA);
+      curvePoint(modeA, u, t, curveScratchA);
+      curvePoint(modeB, u, t, curveScratchB);
+      return out.copy(curveScratchA).lerp(curveScratchB, mix);
+    }
+
+    function buildMathCurveEngine() {
+      const colors = [mats.lineCyan, mats.lineMagenta, mats.lineOrange, mats.lineLime];
+      for (let lineIndex = 0; lineIndex < 4; lineIndex++) {
+        const points = [];
+        for (let i = 0; i <= 160; i++) {
+          const p = mixedCurvePoint((i / 160 + lineIndex * 0.08) % 1, 0, new THREE.Vector3());
+          p.set(p.x * 1.32, p.y * 0.92 + 1.86, p.z * 1.32);
+          points.push(p);
+        }
+        const line = makeLine(points, colors[lineIndex]);
+        line.material.opacity = 0.76 + lineIndex * 0.06;
+        animated.curveLines.push({ line, lineIndex });
+      }
+
+      for (let i = 0; i < 40; i++) {
+        const mat = i % 4 === 0 ? mats.orangeCore : (i % 4 === 1 ? mats.cyanCore : (i % 4 === 2 ? mats.magentaCore : mats.limeCore));
+        const p = sphere(0.044 + (i % 3) * 0.011, mat, 0, 1.86, 0, 1);
+        p.castShadow = false;
+        animated.curvePoints.push({ object: p, u: i / 40, phase: i * 0.43 });
+      }
+    }
+
+    function buildMorphingWaveCore() {
+      const geometry = new THREE.IcosahedronGeometry(0.82, 4);
+      const position = geometry.attributes.position;
+      const colors = new Float32Array(position.count * 3);
+      for (let i = 0; i < position.count; i++) {
+        colors[i * 3 + 0] = palette.cyan.r;
+        colors[i * 3 + 1] = palette.cyan.g;
+        colors[i * 3 + 2] = palette.cyan.b;
+      }
+      geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+      geometry.computeVertexNormals();
+
+      const mesh = new THREE.Mesh(geometry, mats.waveCore);
+      mesh.position.set(0, 1.86, 0);
+      mesh.scale.set(1.04, 1.28, 1.04);
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
+      root.add(mesh);
+
+      animated.morphCore = mesh;
+      animated.morphCoreBase = new Float32Array(position.array);
+    }
+
+    function morphWaveValue(mode, x, y, z, t) {
+      const r = Math.hypot(x, y, z) || 1;
+      const nx = x / r;
+      const ny = y / r;
+      const nz = z / r;
+      const theta = Math.atan2(nz, nx);
+      const phi = Math.acos(THREE.MathUtils.clamp(ny, -1, 1));
+
+      if (mode === 0) {
+        return Math.sin(theta * 5.0 + t * 4.2) * Math.cos(phi * 3.0 - t * 2.4);
+      }
+      if (mode === 1) {
+        return Math.sin((nx * nx - nz * nz) * 9.0 + t * 3.3) * 0.7 + Math.cos(ny * 8.0 - t * 2.8) * 0.3;
+      }
+      if (mode === 2) {
+        const spiral = Math.sin(theta * 7.0 + phi * 4.0 - t * 4.8);
+        const band = Math.cos((nx + nz + ny) * 6.0 + t * 3.2);
+        return spiral * 0.66 + band * 0.34;
+      }
+      const lobe = Math.sin(4.0 * theta - t * 3.5) * Math.sin(5.0 * phi + t * 2.7);
+      const pulse = Math.cos(12.0 * r + t * 5.0);
+      return lobe * 0.72 + pulse * 0.28;
+    }
+
+    function coreWaveColor(v, speed, out) {
+      const h = THREE.MathUtils.clamp((v + 1) * 0.5, 0, 1);
+      if (h < 0.25) {
+        out.copy(palette.blue).lerp(palette.cyan, h / 0.25);
+      } else if (h < 0.5) {
+        out.copy(palette.cyan).lerp(palette.lime, (h - 0.25) / 0.25);
+      } else if (h < 0.76) {
+        out.copy(palette.lime).lerp(palette.orange, (h - 0.5) / 0.26);
+      } else {
+        out.copy(palette.orange).lerp(palette.magenta, (h - 0.76) / 0.24);
+      }
+      return out.lerp(palette.amber, Math.min(0.22, speed * 0.16));
+    }
+
+    function buildFog() {
+      const count = 420;
+      const positions = new Float32Array(count * 3);
+      const data = [];
+      for (let i = 0; i < count; i++) {
+        const r = Math.sqrt(Math.random()) * 8;
+        const a = Math.random() * TAU;
+        const x = Math.cos(a) * r;
+        const z = Math.sin(a) * r - 0.6;
+        const y = 0.75 + Math.random() * 4.6;
+        positions[i * 3 + 0] = x;
+        positions[i * 3 + 1] = y;
+        positions[i * 3 + 2] = z;
+        data.push({ x, y, z, phase: Math.random() * TAU, drift: 0.08 + Math.random() * 0.18 });
+      }
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+      const points = new THREE.Points(geometry, mats.fogPoint);
+      scene.add(points);
+      animated.fog = points;
+      animated.fogData = data;
+    }
+
+    function buildLighting() {
+      scene.add(new THREE.HemisphereLight(0x65fff4, 0x061015, 0.92));
+      const key = new THREE.DirectionalLight(0xbafcff, 2.45);
+      key.position.set(-4.5, 8.6, 5.5);
+      key.castShadow = true;
+      key.shadow.mapSize.set(2048, 2048);
+      key.shadow.camera.near = 1;
+      key.shadow.camera.far = 26;
+      key.shadow.camera.left = -8;
+      key.shadow.camera.right = 8;
+      key.shadow.camera.top = 8;
+      key.shadow.camera.bottom = -8;
+      scene.add(key);
+
+      const warm = new THREE.PointLight(0xff6d2e, 3.0, 8.2, 2);
+      warm.position.set(0, 1.2, 0);
+      scene.add(warm);
+      animated.pulseLights.push({ light: warm, base: 2.8, amp: 0.65, phase: 0 });
+
+      const cyan = new THREE.PointLight(0x12fff1, 3.6, 9.6, 2);
+      cyan.position.set(0, 2.92, 0);
+      scene.add(cyan);
+      animated.pulseLights.push({ light: cyan, base: 3.0, amp: 0.7, phase: 1.4 });
+
+      const magenta = new THREE.PointLight(0xff31d2, 1.7, 7.8, 2);
+      magenta.position.set(-2.7, 2.6, 1.1);
+      scene.add(magenta);
+      animated.pulseLights.push({ light: magenta, base: 1.35, amp: 0.48, phase: 2.2 });
+
+      const rim = new THREE.DirectionalLight(0xffb06c, 1.4);
+      rim.position.set(5.8, 3.2, -5.5);
+      scene.add(rim);
+    }
+
+    function createScene() {
+      buildLighting();
+      buildPlatform();
+      buildCentralCore();
+      buildActuatorPair(-1);
+      buildActuatorPair(1);
+      buildNanotube(-1);
+      buildNanotube(1);
+      buildMorphingWaveCore();
+      buildFog();
+
+      const moleculePositions = [
+        [-4.8, 1.25, -3.7, 0.64, 1],
+        [4.7, 1.38, -3.8, 0.62, 2],
+        [-5.2, 3.6, -1.1, 0.52, 3],
+        [5.2, 3.82, -0.9, 0.48, 4],
+        [-3.4, 4.82, -4.6, 0.42, 5],
+        [3.65, 4.72, -4.35, 0.44, 6],
+        [-4.1, 0.95, 3.58, 0.38, 7],
+        [4.15, 1.02, 3.48, 0.4, 8],
+        [0.0, 4.85, -4.9, 0.46, 9]
+      ];
+      moleculePositions.forEach(args => buildMoleculeCluster(...args));
+    }
+
+    function updateMathCurves(t) {
+      const mode = (t * 0.18) % 4;
+      const modeIndex = Math.floor(mode);
+      const nextIndex = (modeIndex + 1) % 4;
+      const mix = smoother(mode - modeIndex);
+      const modeColors = [palette.cyan, palette.magenta, palette.orange, palette.lime];
+      colorA.copy(modeColors[modeIndex]).lerp(modeColors[nextIndex], mix);
+      colorB.copy(modeColors[(modeIndex + 2) % 4]).lerp(modeColors[(nextIndex + 2) % 4], mix);
+
+      for (const item of animated.curveLines) {
+        const positions = item.line.geometry.attributes.position;
+        const shift = item.lineIndex * 0.075 + t * 0.015;
+        for (let i = 0; i <= 160; i++) {
+          const u = (i / 160 + shift) % 1;
+          const p = mixedCurvePoint(u, t + item.lineIndex * 0.16, scratch);
+          const swirl = item.lineIndex * TAU / 4 + t * 0.55;
+          const c = Math.cos(swirl);
+          const s = Math.sin(swirl);
+          const x = (p.x * c - p.z * s) * 1.32;
+          const z = (p.x * s + p.z * c) * 1.32;
+          positions.setXYZ(i, x, p.y * 0.92 + 1.86, z);
+        }
+        positions.needsUpdate = true;
+        item.line.material.color.copy(item.lineIndex % 2 ? colorB : colorA);
+        item.line.material.opacity = 0.72 + 0.24 * Math.abs(Math.sin(t * 2.1 + item.lineIndex));
+      }
+
+      for (const point of animated.curvePoints) {
+        const u = (point.u + t * 0.035) % 1;
+        const p = mixedCurvePoint(u, t + point.phase * 0.02, scratch);
+        const breath = 1 + 0.18 * Math.sin(t * 4.2 + point.phase);
+        point.object.position.set(p.x * 1.32, p.y * 0.92 + 1.86, p.z * 1.32);
+        point.object.scale.setScalar(breath);
+      }
+    }
+
+    function updateMorphCore(t) {
+      const mesh = animated.morphCore;
+      if (!mesh || !animated.morphCoreBase) return;
+
+      const position = mesh.geometry.attributes.position;
+      const colorAttr = mesh.geometry.attributes.color;
+      const base = animated.morphCoreBase;
+      const rawMode = (t * 0.42) % 4;
+      const modeA = Math.floor(rawMode);
+      const modeB = (modeA + 1) % 4;
+      const mix = smoother(rawMode - modeA);
+
+      for (let i = 0; i < position.count; i++) {
+        const ix = i * 3;
+        const bx = base[ix];
+        const by = base[ix + 1];
+        const bz = base[ix + 2];
+        const waveA = morphWaveValue(modeA, bx, by, bz, t);
+        const waveB = morphWaveValue(modeB, bx, by, bz, t);
+        const wave = THREE.MathUtils.lerp(waveA, waveB, mix);
+        const speed = Math.abs(waveA - waveB);
+        const radial = 1 + wave * 0.34 + Math.sin(t * 3.0 + bx * 8.0 + bz * 6.0) * 0.035;
+        const vertical = 1 + wave * 0.24;
+
+        position.setXYZ(
+          i,
+          bx * radial,
+          by * vertical + wave * 0.14,
+          bz * radial
+        );
+
+        coreWaveColor(wave, speed, colorA);
+        colorAttr.setXYZ(i, colorA.r, colorA.g, colorA.b);
+      }
+
+      position.needsUpdate = true;
+      colorAttr.needsUpdate = true;
+      mesh.geometry.computeVertexNormals();
+      mesh.rotation.y += 0.006;
+      mesh.rotation.x = Math.sin(t * 0.7) * 0.055;
+      mesh.rotation.z = Math.cos(t * 0.58) * 0.035;
+    }
+
+    function updateMechanical(t) {
+      for (const gear of animated.gears) {
+        gear.object.rotation.y += gear.speed * 0.012;
+        gear.object.position.y += Math.sin(t * 2.1 + gear.phase) * 0.0007;
+      }
+
+      for (const ring of animated.rings) {
+        if (ring.axis === "x") ring.object.rotation.x += ring.speed * 0.012;
+        if (ring.axis === "y") ring.object.rotation.y += ring.speed * 0.012;
+        if (ring.axis === "z") ring.object.rotation.z += ring.speed * 0.012;
+      }
+
+      if (animated.nanoCore) {
+        animated.nanoCore.rotation.y += 0.005;
+        animated.nanoCore.rotation.x = Math.sin(t * 0.9) * 0.04;
+        const pulse = 1 + Math.sin(t * 3.1) * 0.035;
+        animated.nanoCore.scale.set(1.05 * pulse, 1.35 * (1 + Math.sin(t * 2.3) * 0.025), 1.05 * pulse);
+        animated.nanoCoreEdges.rotation.copy(animated.nanoCore.rotation);
+        animated.nanoCoreEdges.scale.copy(animated.nanoCore.scale);
+      }
+
+      if (animated.topRotor) {
+        animated.topRotor.rotation.y += 0.009;
+        animated.topRotor.position.y = 3.52 + Math.sin(t * 1.2) * 0.035;
+      }
+
+      for (const p of animated.pistons) {
+        const nudge = Math.sin(t * 2.3 + p.phase) * 0.12;
+        const a = p.start.clone();
+        const b = p.end.clone();
+        b.y += nudge;
+        orientCylinderBetween(p.a, a, b);
+      }
+
+      for (const n of animated.moleculeNodes) {
+        const pulse = Math.sin(t * 2.1 + n.phase) * n.amp;
+        n.object.position.set(n.base.x, n.base.y + pulse, n.base.z);
+      }
+
+      for (const m of animated.molecules) {
+        m.object.rotation.y += m.speed * 0.004;
+        m.object.rotation.x = Math.sin(t * 0.6 + m.phase) * 0.11;
+      }
+
+      for (const node of animated.energyNodes) {
+        const s = 1 + Math.sin(t * 4.3 + node.phase) * 0.16;
+        node.object.scale.setScalar(s);
+        node.object.position.y += Math.sin(t * 2 + node.phase) * node.radius * 0.012;
+      }
+
+      for (const p of animated.pulseLights) {
+        p.light.intensity = p.base + Math.sin(t * 3 + p.phase) * p.amp;
+      }
+    }
+
+    function updateFog(t) {
+      if (!animated.fog) return;
+      const pos = animated.fog.geometry.attributes.position;
+      for (let i = 0; i < animated.fogData.length; i++) {
+        const p = animated.fogData[i];
+        const x = p.x + Math.sin(t * p.drift + p.phase) * 0.32;
+        const y = p.y + Math.sin(t * p.drift * 1.4 + p.phase) * 0.14;
+        const z = p.z + Math.cos(t * p.drift + p.phase) * 0.28;
+        pos.setXYZ(i, x, y, z);
+      }
+      pos.needsUpdate = true;
+    }
+
+    createScene();
+
+    function render() {
+      const t = clock.getElapsedTime();
+      updateMorphCore(t);
+      updateMechanical(t);
+      updateFog(t);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    renderer.setAnimationLoop(render);
+
+    window.addEventListener("resize", () => {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+      renderer.setSize(width, height);
+    });
+  </script>
+</body>
+</html>
