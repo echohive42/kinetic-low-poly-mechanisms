@@ -1,0 +1,1159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Low Poly Planetary Harmonic Transmission</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 42%, rgba(21, 255, 232, 0.15), transparent 25%),
+        radial-gradient(circle at 30% 74%, rgba(255, 90, 42, 0.13), transparent 26%),
+        radial-gradient(circle at 76% 22%, rgba(199, 73, 255, 0.11), transparent 24%),
+        linear-gradient(180deg, #020407 0%, #071019 48%, #020305 100%);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+    }
+
+    canvas:active { cursor: grabbing; }
+
+    .vignette,
+    .grain,
+    .color-bloom {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .vignette {
+      background:
+        radial-gradient(circle at 50% 47%, transparent 0%, transparent 52%, rgba(0, 0, 0, 0.72) 100%),
+        linear-gradient(180deg, rgba(0, 0, 0, 0.3), transparent 35%, rgba(0, 0, 0, 0.34));
+    }
+
+    .grain {
+      opacity: 0.055;
+      mix-blend-mode: screen;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+      background-size: 3px 3px;
+      mask-image: radial-gradient(circle at center, black 0%, black 70%, transparent 100%);
+    }
+
+    .color-bloom {
+      opacity: 0.62;
+      mix-blend-mode: screen;
+      background:
+        radial-gradient(circle at 50% 47%, rgba(26, 255, 231, 0.13), transparent 18%),
+        radial-gradient(circle at 48% 55%, rgba(255, 92, 39, 0.1), transparent 16%),
+        radial-gradient(circle at 58% 38%, rgba(210, 67, 255, 0.08), transparent 18%);
+    }
+  </style>
+</head>
+<body>
+  <div class="color-bloom" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+    const TAU = Math.PI * 2;
+    const UP = new THREE.Vector3(0, 1, 0);
+    const scratchA = new THREE.Vector3();
+    const scratchB = new THREE.Vector3();
+    const scratchC = new THREE.Vector3();
+    const scratchQ = new THREE.Quaternion();
+    const scratchS = new THREE.Vector3(1, 1, 1);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x03080c);
+    scene.fog = new THREE.FogExp2(0x07131a, 0.021);
+
+    const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.1, 140);
+    camera.position.set(7.9, 6.65, 8.45);
+    camera.lookAt(0, 1.2, 0);
+
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: false,
+      powerPreference: "high-performance"
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.04;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.body.prepend(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 1.06, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.058;
+    controls.enablePan = true;
+    controls.screenSpacePanning = true;
+    controls.enableZoom = true;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.16;
+    controls.minDistance = 5.8;
+    controls.maxDistance = 19;
+    controls.minPolarAngle = Math.PI * 0.16;
+    controls.maxPolarAngle = Math.PI * 0.5;
+    controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+    controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
+    controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+    controls.touches.ONE = THREE.TOUCH.ROTATE;
+    controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+
+    const root = new THREE.Group();
+    root.rotation.y = -0.12;
+    scene.add(root);
+
+    const clock = new THREE.Clock();
+    const colorLow = new THREE.Color(0x1affea);
+    const colorMid = new THREE.Color(0xd248ff);
+    const colorHot = new THREE.Color(0xff6a2a);
+    const colorHigh = new THREE.Color(0xc9ff4f);
+    const colorWork = new THREE.Color();
+
+    const mats = {
+      floorA: new THREE.MeshStandardMaterial({ color: 0x091118, roughness: 0.42, metalness: 0.62, flatShading: true }),
+      floorB: new THREE.MeshStandardMaterial({ color: 0x101a21, roughness: 0.38, metalness: 0.58, flatShading: true }),
+      obsidian: new THREE.MeshStandardMaterial({ color: 0x060c11, roughness: 0.36, metalness: 0.78, flatShading: true }),
+      graphite: new THREE.MeshStandardMaterial({ color: 0x101820, roughness: 0.3, metalness: 0.84, flatShading: true }),
+      blackFacet: new THREE.MeshStandardMaterial({ color: 0x14222b, roughness: 0.46, metalness: 0.7, flatShading: true }),
+      teal: new THREE.MeshStandardMaterial({ color: 0x138d8a, roughness: 0.32, metalness: 0.72, flatShading: true }),
+      cyan: new THREE.MeshStandardMaterial({ color: 0x1affea, emissive: 0x00cbbd, emissiveIntensity: 0.42, roughness: 0.2, metalness: 0.36, flatShading: true }),
+      magenta: new THREE.MeshStandardMaterial({ color: 0xc949ff, emissive: 0x5a0c77, emissiveIntensity: 0.4, roughness: 0.24, metalness: 0.5, flatShading: true }),
+      orange: new THREE.MeshStandardMaterial({ color: 0xff6a2a, emissive: 0xa22910, emissiveIntensity: 0.28, roughness: 0.28, metalness: 0.62, flatShading: true }),
+      cobalt: new THREE.MeshStandardMaterial({ color: 0x2767ff, emissive: 0x092383, emissiveIntensity: 0.3, roughness: 0.3, metalness: 0.62, flatShading: true }),
+      lime: new THREE.MeshStandardMaterial({ color: 0xa4f54e, emissive: 0x284f10, emissiveIntensity: 0.32, roughness: 0.34, metalness: 0.48, flatShading: true }),
+      amber: new THREE.MeshStandardMaterial({ color: 0xffc363, roughness: 0.24, metalness: 0.86, flatShading: true }),
+      brass: new THREE.MeshStandardMaterial({ color: 0xb8783f, roughness: 0.24, metalness: 0.88, flatShading: true }),
+      darkBrass: new THREE.MeshStandardMaterial({ color: 0x704020, roughness: 0.36, metalness: 0.86, flatShading: true }),
+      silver: new THREE.MeshStandardMaterial({ color: 0xb9c6c6, roughness: 0.26, metalness: 0.72, flatShading: true }),
+      membrane: new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        vertexColors: true,
+        emissive: 0x061a1c,
+        emissiveIntensity: 0.8,
+        roughness: 0.28,
+        metalness: 0.18,
+        flatShading: true,
+        side: THREE.DoubleSide
+      }),
+      flex: new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        vertexColors: true,
+        emissive: 0x07161b,
+        emissiveIntensity: 0.52,
+        roughness: 0.22,
+        metalness: 0.5,
+        flatShading: true,
+        side: THREE.DoubleSide
+      }),
+      cyanLine: new THREE.MeshBasicMaterial({ color: 0x1affea, transparent: true, opacity: 0.34, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+      amberLine: new THREE.MeshBasicMaterial({ color: 0xffb14a, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+      magentaLine: new THREE.MeshBasicMaterial({ color: 0xd248ff, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+      limeLine: new THREE.MeshBasicMaterial({ color: 0xc9ff4f, transparent: true, opacity: 0.26, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
+      orangeLine: new THREE.MeshBasicMaterial({ color: 0xff6a2a, transparent: true, opacity: 0.26, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false })
+    };
+
+    const gearGeometries = new Map();
+    const geometries = {
+      bolt: new THREE.CylinderGeometry(0.075, 0.09, 0.08, 8, 1),
+      bead: new THREE.DodecahedronGeometry(0.075, 0),
+      node: new THREE.DodecahedronGeometry(0.13, 0),
+      smallNode: new THREE.DodecahedronGeometry(0.075, 0),
+      boxTooth: new THREE.BoxGeometry(0.1, 0.18, 0.24),
+      rail: new THREE.CylinderGeometry(0.045, 0.045, 1, 8, 1),
+      heavyRod: new THREE.CylinderGeometry(0.065, 0.065, 1, 8, 1),
+      linkRod: new THREE.CylinderGeometry(0.045, 0.045, 1, 8, 1),
+      axle: new THREE.CylinderGeometry(0.09, 0.09, 1, 10, 1),
+      glowRod: new THREE.CylinderGeometry(0.022, 0.022, 1, 8, 1),
+      prism: new THREE.CylinderGeometry(0.16, 0.2, 0.34, 6, 1)
+    };
+
+    function enableShadow(mesh, cast = true, receive = true) {
+      mesh.castShadow = cast;
+      mesh.receiveShadow = receive;
+      return mesh;
+    }
+
+    function addLights() {
+      const hemi = new THREE.HemisphereLight(0x9eefff, 0x08090b, 1.45);
+      scene.add(hemi);
+
+      const key = new THREE.DirectionalLight(0xffe1b0, 3.8);
+      key.position.set(-4.9, 8.5, 4.6);
+      key.castShadow = true;
+      key.shadow.mapSize.set(2048, 2048);
+      key.shadow.camera.left = -8;
+      key.shadow.camera.right = 8;
+      key.shadow.camera.top = 8;
+      key.shadow.camera.bottom = -8;
+      key.shadow.camera.near = 0.5;
+      key.shadow.camera.far = 24;
+      scene.add(key);
+
+      const cyanRim = new THREE.PointLight(0x19fff0, 6.2, 13, 1.7);
+      cyanRim.position.set(3.9, 3.2, -4.5);
+      scene.add(cyanRim);
+
+      const magentaRim = new THREE.PointLight(0xd049ff, 3.6, 10, 1.8);
+      magentaRim.position.set(-3.6, 2.6, -3.8);
+      scene.add(magentaRim);
+
+      const amberKick = new THREE.SpotLight(0xff8842, 14, 16, Math.PI * 0.18, 0.65, 1.4);
+      amberKick.position.set(4.7, 5.1, 4.4);
+      amberKick.target.position.set(0, 0.9, 0);
+      scene.add(amberKick, amberKick.target);
+    }
+
+    function gearGeometry(teeth, radius, thickness, toothDepth, holeRadius) {
+      const key = `${teeth}-${radius}-${thickness}-${toothDepth}-${holeRadius}`;
+      if (gearGeometries.has(key)) return gearGeometries.get(key);
+
+      const shape = new THREE.Shape();
+      const points = [];
+      const toothPitch = TAU / teeth;
+      for (let i = 0; i < teeth; i++) {
+        const center = i * toothPitch;
+        const angles = [-0.48, -0.2, 0.2, 0.48].map(v => center + v * toothPitch);
+        const radii = [
+          radius - toothDepth * 0.38,
+          radius + toothDepth * 0.58,
+          radius + toothDepth * 0.58,
+          radius - toothDepth * 0.38
+        ];
+        for (let j = 0; j < 4; j++) {
+          points.push(new THREE.Vector2(Math.cos(angles[j]) * radii[j], Math.sin(angles[j]) * radii[j]));
+        }
+      }
+
+      shape.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) shape.lineTo(points[i].x, points[i].y);
+      shape.closePath();
+
+      const hole = new THREE.Path();
+      hole.absarc(0, 0, holeRadius, 0, TAU, true);
+      shape.holes.push(hole);
+
+      const geometry = new THREE.ExtrudeGeometry(shape, {
+        depth: thickness,
+        bevelEnabled: true,
+        bevelThickness: thickness * 0.06,
+        bevelSize: thickness * 0.075,
+        bevelSegments: 1,
+        curveSegments: 1,
+        steps: 1
+      });
+      geometry.center();
+      geometry.computeVertexNormals();
+      gearGeometries.set(key, geometry);
+      return geometry;
+    }
+
+    function makeGear({ teeth, radius, thickness, toothDepth = 0.16, material, hubMaterial, hubScale = 0.34 }) {
+      const group = new THREE.Group();
+      group.userData.teeth = teeth;
+
+      const body = new THREE.Mesh(
+        gearGeometry(teeth, radius, thickness, toothDepth, radius * 0.22),
+        material
+      );
+      body.rotation.x = -Math.PI / 2;
+      enableShadow(body);
+      group.add(body);
+
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(radius * hubScale, radius * hubScale * 1.08, thickness * 1.28, 10, 1), hubMaterial);
+      enableShadow(hub);
+      group.add(hub);
+
+      const collarGeo = new THREE.TorusGeometry(radius * (hubScale + 0.18), 0.035, 6, 24);
+      const topCollar = new THREE.Mesh(collarGeo, mats.cyan);
+      topCollar.rotation.x = Math.PI / 2;
+      topCollar.position.y = thickness * 0.67;
+      enableShadow(topCollar, true, false);
+      group.add(topCollar);
+
+      const bottomCollar = topCollar.clone();
+      bottomCollar.position.y = -thickness * 0.67;
+      group.add(bottomCollar);
+
+      return group;
+    }
+
+    function setCylinderBetween(mesh, start, end) {
+      scratchA.subVectors(end, start);
+      const length = Math.max(scratchA.length(), 0.001);
+      scratchA.normalize();
+      mesh.position.copy(start).add(end).multiplyScalar(0.5);
+      mesh.quaternion.setFromUnitVectors(UP, scratchA);
+      mesh.scale.set(1, length, 1);
+    }
+
+    function addRod(parent, start, end, radius, material, glow = false) {
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius, 1, glow ? 8 : 10, 1), material);
+      setCylinderBetween(mesh, start, end);
+      enableShadow(mesh, !glow, !glow);
+      parent.add(mesh);
+      return mesh;
+    }
+
+    function addBox(parent, position, scale, material, rotationY = 0) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material);
+      mesh.position.copy(position);
+      mesh.scale.copy(scale);
+      mesh.rotation.y = rotationY;
+      enableShadow(mesh);
+      parent.add(mesh);
+      return mesh;
+    }
+
+    function makeBolt(parent, x, y, z, material = mats.amber) {
+      const bolt = new THREE.Mesh(geometries.bolt, material);
+      bolt.position.set(x, y, z);
+      enableShadow(bolt);
+      parent.add(bolt);
+      return bolt;
+    }
+
+    function makeBase() {
+      const base = new THREE.Group();
+      root.add(base);
+
+      const ground = new THREE.Mesh(new THREE.PlaneGeometry(18, 18), new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.36 }));
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.y = -0.05;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      const deck = new THREE.Group();
+      base.add(deck);
+      for (let x = -4; x <= 4; x++) {
+        for (let z = -4; z <= 4; z++) {
+          const skipCenter = Math.hypot(x, z) < 1.05;
+          const scale = skipCenter ? new THREE.Vector3(0.62, 0.08, 0.62) : new THREE.Vector3(0.78, 0.09 + ((x + z) & 1) * 0.015, 0.78);
+          const tile = addBox(deck, new THREE.Vector3(x * 0.82, 0, z * 0.82), scale, ((x + z) & 1) ? mats.floorA : mats.floorB, ((x - z) % 3) * 0.03);
+          tile.position.y = -0.01 - Math.random() * 0.006;
+        }
+      }
+
+      const rimPoints = [
+        [-4.0, -4.0], [4.0, -4.0], [4.0, 4.0], [-4.0, 4.0]
+      ];
+      for (let i = 0; i < 4; i++) {
+        const a = new THREE.Vector3(rimPoints[i][0], 0.12, rimPoints[i][1]);
+        const b = new THREE.Vector3(rimPoints[(i + 1) % 4][0], 0.12, rimPoints[(i + 1) % 4][1]);
+        addRod(base, a, b, 0.08, mats.graphite);
+      }
+
+      for (const sx of [-1, 1]) {
+        for (const sz of [-1, 1]) {
+          const foot = addBox(base, new THREE.Vector3(sx * 4.15, 0.2, sz * 4.15), new THREE.Vector3(0.56, 0.38, 0.56), mats.obsidian, 0.28 * sx * sz);
+          makeBolt(foot, 0.18, 0.24, 0.18, mats.brass);
+          makeBolt(foot, -0.18, 0.24, -0.18, mats.cyan);
+        }
+      }
+
+      return base;
+    }
+
+    function makeCircularSpline() {
+      const group = new THREE.Group();
+      group.position.y = 0.96;
+      root.add(group);
+
+      const outerRing = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.16, 8, 72), mats.graphite);
+      outerRing.rotation.x = Math.PI / 2;
+      enableShadow(outerRing);
+      group.add(outerRing);
+
+      const copperRing = new THREE.Mesh(new THREE.TorusGeometry(2.1, 0.045, 6, 72), mats.brass);
+      copperRing.rotation.x = Math.PI / 2;
+      copperRing.position.y = 0.18;
+      enableShadow(copperRing, true, false);
+      group.add(copperRing);
+
+      const toothCount = 56;
+      const toothMesh = new THREE.InstancedMesh(geometries.boxTooth, mats.amber, toothCount);
+      toothMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      const matrix = new THREE.Matrix4();
+      for (let i = 0; i < toothCount; i++) {
+        const angle = i / toothCount * TAU;
+        scratchA.set(Math.cos(angle) * 1.88, 0.03, Math.sin(angle) * 1.88);
+        scratchQ.setFromEuler(new THREE.Euler(0, -angle, 0));
+        scratchS.set(1.0, 1.0, 1.0);
+        matrix.compose(scratchA, scratchQ, scratchS);
+        toothMesh.setMatrixAt(i, matrix);
+      }
+      enableShadow(toothMesh);
+      group.add(toothMesh);
+
+      const tickCount = 28;
+      for (let i = 0; i < tickCount; i++) {
+        const angle = i / tickCount * TAU;
+        const material = i % 4 === 0 ? mats.orange : mats.cyan;
+        const tick = new THREE.Mesh(geometries.smallNode, material);
+        tick.position.set(Math.cos(angle) * 2.32, 0.22, Math.sin(angle) * 2.32);
+        tick.scale.setScalar(i % 4 === 0 ? 1.25 : 0.86);
+        enableShadow(tick);
+        group.add(tick);
+      }
+
+      return group;
+    }
+
+    function makePlanetaryTrain() {
+      const train = new THREE.Group();
+      train.position.y = 0.93;
+      root.add(train);
+
+      const ring = makeCircularSpline();
+
+      const sun = makeGear({
+        teeth: 16,
+        radius: 0.47,
+        thickness: 0.22,
+        toothDepth: 0.12,
+        material: mats.orange,
+        hubMaterial: mats.silver,
+        hubScale: 0.38
+      });
+      sun.position.y = 0.12;
+      train.add(sun);
+
+      const carrier = new THREE.Group();
+      carrier.position.y = 0.12;
+      train.add(carrier);
+
+      const carrierHub = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.36, 0.38, 10, 1), mats.cobalt);
+      enableShadow(carrierHub);
+      carrier.add(carrierHub);
+
+      const planetData = [];
+      const planetCount = 4;
+      const planetRadius = 1.16;
+      for (let i = 0; i < planetCount; i++) {
+        const angle = i / planetCount * TAU + Math.PI / 4;
+        const armEnd = new THREE.Vector3(Math.cos(angle) * planetRadius, 0, Math.sin(angle) * planetRadius);
+        addRod(carrier, new THREE.Vector3(0, 0, 0), armEnd, 0.06, i % 2 ? mats.magenta : mats.cyan);
+
+        const planet = makeGear({
+          teeth: 22,
+          radius: 0.48,
+          thickness: 0.2,
+          toothDepth: 0.1,
+          material: i % 2 ? mats.teal : mats.cobalt,
+          hubMaterial: mats.brass,
+          hubScale: 0.32
+        });
+        planet.position.copy(armEnd);
+        carrier.add(planet);
+
+        const axle = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.11, 0.58, 10, 1), mats.silver);
+        axle.position.copy(armEnd);
+        enableShadow(axle);
+        carrier.add(axle);
+
+        planetData.push({ planet, angle });
+      }
+
+      return { train, ring, sun, carrier, planetData };
+    }
+
+    function makeFlexSpline() {
+      const segments = 76;
+      const positions = [];
+      const colors = [];
+      const indices = [];
+      const base = [];
+      const radius = 1.42;
+      const halfWidth = 0.055;
+
+      for (let i = 0; i <= segments; i++) {
+        const angle = i / segments * TAU;
+        for (const side of [-1, 1]) {
+          const r = radius + side * halfWidth;
+          positions.push(Math.cos(angle) * r, 1.32, Math.sin(angle) * r);
+          colors.push(0.1, 1, 0.92);
+          base.push({ angle, side });
+        }
+      }
+
+      for (let i = 0; i < segments; i++) {
+        const a = i * 2;
+        indices.push(a, a + 1, a + 3, a, a + 3, a + 2);
+      }
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+      geometry.setIndex(indices);
+      geometry.computeVertexNormals();
+
+      const mesh = new THREE.Mesh(geometry, mats.flex);
+      enableShadow(mesh);
+      root.add(mesh);
+
+      const toothGeo = new THREE.BoxGeometry(0.06, 0.085, 0.16);
+      const toothMat = mats.magenta;
+      const teeth = [];
+      const toothCount = 38;
+      for (let i = 0; i < toothCount; i++) {
+        const tooth = new THREE.Mesh(toothGeo, toothMat);
+        enableShadow(tooth);
+        tooth.position.y = 1.34;
+        root.add(tooth);
+        teeth.push({ mesh: tooth, angle: i / toothCount * TAU });
+      }
+
+      const waveGenerator = new THREE.Group();
+      waveGenerator.position.y = 1.31;
+      root.add(waveGenerator);
+      for (let i = 0; i < 2; i++) {
+        const roller = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.12, 0.42, 10, 1), i === 0 ? mats.cyan : mats.orange);
+        roller.rotation.z = Math.PI / 2;
+        roller.position.set((i === 0 ? 0.82 : -0.82), 0, 0);
+        enableShadow(roller);
+        waveGenerator.add(roller);
+
+        const cap = new THREE.Mesh(geometries.node, i === 0 ? mats.lime : mats.magenta);
+        cap.position.copy(roller.position);
+        enableShadow(cap);
+        waveGenerator.add(cap);
+      }
+
+      return { mesh, geometry, base, teeth, waveGenerator, radius, halfWidth };
+    }
+
+    function makeWavePlate() {
+      const rings = 15;
+      const segments = 72;
+      const positions = [];
+      const colors = [];
+      const indices = [];
+      const base = [];
+      const radius = 0.92;
+
+      for (let r = 0; r <= rings; r++) {
+        const rr = radius * r / rings;
+        for (let i = 0; i < segments; i++) {
+          const angle = i / segments * TAU;
+          positions.push(Math.cos(angle) * rr, 1.36, Math.sin(angle) * rr);
+          colors.push(0.1, 0.95, 0.92);
+          base.push({ r: rr, angle });
+        }
+      }
+
+      for (let r = 0; r < rings; r++) {
+        const row = r * segments;
+        const next = (r + 1) * segments;
+        for (let i = 0; i < segments; i++) {
+          const a = row + i;
+          const b = row + (i + 1) % segments;
+          const c = next + i;
+          const d = next + (i + 1) % segments;
+          indices.push(a, c, d, a, d, b);
+        }
+      }
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+      geometry.setIndex(indices);
+      geometry.computeVertexNormals();
+
+      const plate = new THREE.Mesh(geometry, mats.membrane);
+      plate.receiveShadow = false;
+      plate.castShadow = false;
+      root.add(plate);
+
+      const wire = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({
+        color: 0x1affea,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.28,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        toneMapped: false
+      }));
+      root.add(wire);
+
+      return { plate, geometry, base };
+    }
+
+    function makeCrankSlider(angle, phase, bodyMat, accentMat) {
+      const group = new THREE.Group();
+      group.rotation.y = -angle;
+      root.add(group);
+
+      addRod(group, new THREE.Vector3(2.2, 0.58, -0.19), new THREE.Vector3(4.25, 0.58, -0.19), 0.035, mats.silver);
+      addRod(group, new THREE.Vector3(2.2, 0.58, 0.19), new THREE.Vector3(4.25, 0.58, 0.19), 0.035, mats.silver);
+      addBox(group, new THREE.Vector3(3.22, 0.37, 0), new THREE.Vector3(2.04, 0.16, 0.54), mats.obsidian);
+
+      const crank = makeGear({
+        teeth: 18,
+        radius: 0.38,
+        thickness: 0.16,
+        toothDepth: 0.075,
+        material: bodyMat,
+        hubMaterial: mats.brass,
+        hubScale: 0.36
+      });
+      crank.position.set(4.02, 0.76, 0);
+      group.add(crank);
+
+      const slider = new THREE.Group();
+      slider.position.set(2.72, 0.76, 0);
+      group.add(slider);
+      const shoe = addBox(slider, new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.42, 0.24, 0.42), bodyMat);
+      shoe.rotation.y = Math.PI / 4;
+      const plunger = new THREE.Mesh(geometries.prism, accentMat);
+      plunger.rotation.z = Math.PI / 2;
+      plunger.position.set(-0.38, 0.03, 0);
+      enableShadow(plunger);
+      slider.add(plunger);
+
+      const pin = new THREE.Mesh(geometries.node, accentMat);
+      enableShadow(pin);
+      group.add(pin);
+
+      const sliderPin = new THREE.Mesh(geometries.smallNode, mats.amber);
+      sliderPin.position.set(0, 0, 0);
+      enableShadow(sliderPin);
+      slider.add(sliderPin);
+
+      const rod = new THREE.Mesh(geometries.heavyRod, mats.brass);
+      enableShadow(rod);
+      group.add(rod);
+
+      const glow = new THREE.Mesh(geometries.glowRod, mats.cyanLine);
+      group.add(glow);
+
+      return {
+        group,
+        crank,
+        slider,
+        pin,
+        rod,
+        glow,
+        phase,
+        crankCenter: new THREE.Vector3(4.02, 0.76, 0),
+        crankRadius: 0.34,
+        rodLength: 1.34
+      };
+    }
+
+    function makeGenevaIndexer() {
+      const group = new THREE.Group();
+      group.position.set(0, 0.65, 3.15);
+      root.add(group);
+
+      const star = new THREE.Group();
+      group.add(star);
+      for (let i = 0; i < 6; i++) {
+        const blade = addBox(star, new THREE.Vector3(0, 0, 0.24), new THREE.Vector3(0.2, 0.16, 0.66), i % 2 ? mats.cobalt : mats.teal);
+        blade.rotation.y = i / 6 * TAU;
+      }
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.3, 0.24, 8, 1), mats.amber);
+      hub.rotation.x = Math.PI / 2;
+      enableShadow(hub);
+      star.add(hub);
+
+      const driver = makeGear({
+        teeth: 14,
+        radius: 0.36,
+        thickness: 0.16,
+        toothDepth: 0.07,
+        material: mats.orange,
+        hubMaterial: mats.silver,
+        hubScale: 0.34
+      });
+      driver.position.set(-0.95, 0.02, 0.05);
+      group.add(driver);
+
+      const pin = new THREE.Mesh(geometries.node, mats.lime);
+      pin.position.set(-0.95, 0.2, 0.35);
+      enableShadow(pin);
+      group.add(pin);
+
+      return { group, star, driver, pin };
+    }
+
+    function makeFlywheel(parent, position, radius, rimMaterial, spokeMaterial) {
+      const group = new THREE.Group();
+      group.position.copy(position);
+      parent.add(group);
+
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(radius, 0.04, 6, 32), rimMaterial);
+      rim.rotation.y = Math.PI / 2;
+      enableShadow(rim);
+      group.add(rim);
+
+      const inner = new THREE.Mesh(new THREE.TorusGeometry(radius * 0.58, 0.024, 6, 24), spokeMaterial);
+      inner.rotation.y = Math.PI / 2;
+      enableShadow(inner);
+      group.add(inner);
+
+      const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.32, 8, 1), spokeMaterial);
+      hub.rotation.z = Math.PI / 2;
+      enableShadow(hub);
+      group.add(hub);
+
+      for (let i = 0; i < 6; i++) {
+        const a = i / 6 * TAU;
+        addRod(
+          group,
+          new THREE.Vector3(0, 0, 0),
+          new THREE.Vector3(0, Math.cos(a) * radius * 0.88, Math.sin(a) * radius * 0.88),
+          0.018,
+          i % 2 ? mats.cyan : mats.amber
+        );
+      }
+
+      return group;
+    }
+
+    function makeReductionGearbox(angle, phase, index) {
+      const group = new THREE.Group();
+      group.rotation.y = -angle;
+      root.add(group);
+
+      const colorSets = [
+        [mats.cyan, mats.orange, mats.magenta, mats.lime, mats.cyanLine],
+        [mats.lime, mats.cobalt, mats.orange, mats.magenta, mats.limeLine],
+        [mats.magenta, mats.teal, mats.lime, mats.orange, mats.magentaLine],
+        [mats.orange, mats.cyan, mats.cobalt, mats.lime, mats.orangeLine]
+      ];
+      const [inputMat, reducerMat, outputMat, accentMat, glowMat] = colorSets[index % colorSets.length];
+
+      addBox(group, new THREE.Vector3(3.28, 0.82, -0.08), new THREE.Vector3(2.5, 0.16, 1.05), mats.obsidian, 0.05);
+      addRod(group, new THREE.Vector3(2.08, 1.07, -0.76), new THREE.Vector3(4.56, 1.07, -0.76), 0.03, mats.silver);
+      addRod(group, new THREE.Vector3(2.08, 1.07, 0.66), new THREE.Vector3(4.56, 1.07, 0.66), 0.03, mats.silver);
+      addRod(group, new THREE.Vector3(2.08, 1.29, -0.56), new THREE.Vector3(4.56, 1.29, -0.56), 0.021, glowMat, true);
+      addRod(group, new THREE.Vector3(2.1, 1.18, -0.08), new THREE.Vector3(1.58, 1.2, -0.08), 0.034, mats.brass);
+
+      const input = makeGear({
+        teeth: 14,
+        radius: 0.29,
+        thickness: 0.16,
+        toothDepth: 0.06,
+        material: inputMat,
+        hubMaterial: mats.silver,
+        hubScale: 0.36
+      });
+      input.position.set(2.52, 1.12, -0.46);
+      group.add(input);
+
+      const reducer = makeGear({
+        teeth: 26,
+        radius: 0.39,
+        thickness: 0.18,
+        toothDepth: 0.075,
+        material: reducerMat,
+        hubMaterial: mats.brass,
+        hubScale: 0.32
+      });
+      reducer.position.set(3.2, 1.12, -0.46);
+      group.add(reducer);
+
+      const output = makeGear({
+        teeth: 18,
+        radius: 0.34,
+        thickness: 0.16,
+        toothDepth: 0.065,
+        material: outputMat,
+        hubMaterial: mats.darkBrass,
+        hubScale: 0.34
+      });
+      output.position.set(3.93, 1.12, -0.46);
+      group.add(output);
+
+      const transfer = makeGear({
+        teeth: 12,
+        radius: 0.23,
+        thickness: 0.14,
+        toothDepth: 0.052,
+        material: accentMat,
+        hubMaterial: mats.silver,
+        hubScale: 0.38
+      });
+      transfer.position.set(4.1, 1.12, 0.24);
+      group.add(transfer);
+
+      const flywheel = makeFlywheel(group, new THREE.Vector3(4.62, 1.24, 0.34), 0.34, mats.graphite, accentMat);
+
+      const camPin = new THREE.Mesh(geometries.node, accentMat);
+      enableShadow(camPin);
+      group.add(camPin);
+
+      const follower = new THREE.Group();
+      follower.position.set(4.48, 1.14, 0.1);
+      group.add(follower);
+      addBox(follower, new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.28, 0.2, 0.24), outputMat, Math.PI / 4);
+      const followerCap = new THREE.Mesh(geometries.prism, accentMat);
+      followerCap.rotation.x = Math.PI / 2;
+      followerCap.position.set(0.18, 0.02, 0);
+      enableShadow(followerCap);
+      follower.add(followerCap);
+
+      const camRod = new THREE.Mesh(geometries.linkRod, mats.brass);
+      enableShadow(camRod);
+      group.add(camRod);
+
+      const glowRod = new THREE.Mesh(geometries.glowRod, glowMat);
+      group.add(glowRod);
+
+      const torqueBeads = [];
+      for (let i = 0; i < 7; i++) {
+        const bead = new THREE.Mesh(geometries.bead, i % 2 ? accentMat : inputMat);
+        bead.scale.setScalar(i % 3 === 0 ? 1.18 : 0.9);
+        enableShadow(bead);
+        group.add(bead);
+        torqueBeads.push(bead);
+      }
+
+      makeBolt(group, 2.16, 0.95, -0.78, accentMat);
+      makeBolt(group, 4.44, 0.95, -0.78, mats.amber);
+      makeBolt(group, 2.16, 0.95, 0.62, inputMat);
+      makeBolt(group, 4.44, 0.95, 0.62, outputMat);
+
+      return {
+        group,
+        phase,
+        input,
+        reducer,
+        output,
+        transfer,
+        flywheel,
+        camPin,
+        follower,
+        camRod,
+        glowRod,
+        torqueBeads,
+        inputCenter: input.position.clone(),
+        reducerCenter: reducer.position.clone(),
+        outputCenter: output.position.clone(),
+        transferCenter: transfer.position.clone()
+      };
+    }
+
+    function makeChainPath() {
+      const group = new THREE.Group();
+      root.add(group);
+
+      const path = [
+        new THREE.Vector3(-4.25, 1.18, -4.25),
+        new THREE.Vector3(4.25, 1.18, -4.25),
+        new THREE.Vector3(4.25, 1.18, 4.25),
+        new THREE.Vector3(-4.25, 1.18, 4.25)
+      ];
+
+      const rods = [];
+      for (let i = 0; i < 4; i++) {
+        rods.push(addRod(group, path[i], path[(i + 1) % 4], 0.026, i % 2 ? mats.amberLine : mats.cyanLine, true));
+      }
+
+      const pulleys = [];
+      for (let i = 0; i < 4; i++) {
+        const pulley = makeGear({
+          teeth: 16,
+          radius: 0.29,
+          thickness: 0.14,
+          toothDepth: 0.06,
+          material: i % 2 ? mats.lime : mats.magenta,
+          hubMaterial: mats.brass,
+          hubScale: 0.38
+        });
+        pulley.position.copy(path[i]);
+        pulley.rotation.z = Math.PI / 2;
+        group.add(pulley);
+        pulleys.push(pulley);
+      }
+
+      const beads = [];
+      const beadCount = 40;
+      for (let i = 0; i < beadCount; i++) {
+        const bead = new THREE.Mesh(geometries.bead, i % 3 === 0 ? mats.orange : (i % 3 === 1 ? mats.cyan : mats.magenta));
+        enableShadow(bead);
+        group.add(bead);
+        beads.push(bead);
+      }
+
+      return { group, path, beads, pulleys };
+    }
+
+    function sampleClosedPath(points, u, target) {
+      const segLengths = [];
+      let total = 0;
+      for (let i = 0; i < points.length; i++) {
+        const d = points[i].distanceTo(points[(i + 1) % points.length]);
+        segLengths.push(d);
+        total += d;
+      }
+      let dist = ((u % 1) + 1) % 1 * total;
+      for (let i = 0; i < points.length; i++) {
+        if (dist <= segLengths[i]) {
+          const f = dist / segLengths[i];
+          target.lerpVectors(points[i], points[(i + 1) % points.length], f);
+          return target;
+        }
+        dist -= segLengths[i];
+      }
+      return target.copy(points[0]);
+    }
+
+    function makeTowers() {
+      const group = new THREE.Group();
+      root.add(group);
+      const points = [
+        [-3.55, -3.55], [3.55, -3.55], [3.55, 3.55], [-3.55, 3.55]
+      ];
+
+      for (let i = 0; i < points.length; i++) {
+        const [x, z] = points[i];
+        const base = addBox(group, new THREE.Vector3(x, 0.34, z), new THREE.Vector3(0.5, 0.62, 0.5), mats.obsidian, i * 0.18);
+        const tower = addBox(group, new THREE.Vector3(x, 1.05, z), new THREE.Vector3(0.22, 1.35, 0.22), i % 2 ? mats.blackFacet : mats.graphite, i * 0.2);
+        const cap = new THREE.Mesh(geometries.prism, i % 2 ? mats.cobalt : mats.orange);
+        cap.position.set(x, 1.83, z);
+        cap.rotation.y = i * Math.PI / 5;
+        enableShadow(cap);
+        group.add(cap);
+
+        const armA = new THREE.Vector3(x, 1.58, z);
+        const armB = new THREE.Vector3(x * 0.62, 1.32, z * 0.62);
+        addRod(group, armA, armB, 0.045, mats.brass);
+        addRod(group, new THREE.Vector3(x, 0.44, z), new THREE.Vector3(x * 0.72, 0.76, z * 0.72), 0.035, mats.silver);
+        makeBolt(base, 0.16, 0.36, 0.16, i % 2 ? mats.lime : mats.cyan);
+        makeBolt(tower, 0.09, 0.72, -0.09, mats.amber);
+      }
+    }
+
+    addLights();
+    makeBase();
+    makeTowers();
+    const planetary = makePlanetaryTrain();
+    const flexSpline = makeFlexSpline();
+    const wavePlate = makeWavePlate();
+    const geneva = makeGenevaIndexer();
+    const reductionGearboxes = [
+      makeReductionGearbox(Math.PI * 0.25, 0, 0),
+      makeReductionGearbox(Math.PI * 0.75, Math.PI * 0.5, 1),
+      makeReductionGearbox(Math.PI * 1.25, Math.PI, 2),
+      makeReductionGearbox(Math.PI * 1.75, Math.PI * 1.5, 3)
+    ];
+    const chain = makeChainPath();
+    const crankSliders = [
+      makeCrankSlider(0, 0, mats.teal, mats.cyan),
+      makeCrankSlider(Math.PI / 2, Math.PI * 0.5, mats.cobalt, mats.lime),
+      makeCrankSlider(Math.PI, Math.PI, mats.magenta, mats.orange),
+      makeCrankSlider(Math.PI * 1.5, Math.PI * 1.5, mats.orange, mats.cyan)
+    ];
+
+    function updateWavePlate(t) {
+      const position = wavePlate.geometry.attributes.position;
+      const color = wavePlate.geometry.attributes.color;
+      const mode = (Math.sin(t * 0.21) + 1) * 0.5;
+
+      for (let i = 0; i < wavePlate.base.length; i++) {
+        const { r, angle } = wavePlate.base[i];
+        const x = Math.cos(angle) * r;
+        const z = Math.sin(angle) * r;
+        const normalized = r / 0.92;
+        const radial = Math.sin(r * 8.5 - t * 3.2);
+        const clover = Math.cos(angle * 5 + t * 1.7) * Math.sin(r * 5.8 + t);
+        const saddle = Math.sin((x * x - z * z) * 6.5 + t * 2.4);
+        const spiral = Math.sin(angle * 3.0 + r * 9.0 - t * 4.2);
+        const wave = radial * (1 - mode) + (clover * 0.55 + saddle * 0.35 + spiral * 0.28) * mode;
+        const y = 1.36 + wave * 0.28 * (0.18 + normalized * 0.82);
+
+        position.setXYZ(i, x, y, z);
+        const h = THREE.MathUtils.clamp((y - 1.08) / 0.58, 0, 1);
+        if (h < 0.35) {
+          colorWork.copy(colorLow).lerp(colorMid, h / 0.35);
+        } else if (h < 0.68) {
+          colorWork.copy(colorMid).lerp(colorHot, (h - 0.35) / 0.33);
+        } else {
+          colorWork.copy(colorHot).lerp(colorHigh, (h - 0.68) / 0.32);
+        }
+        color.setXYZ(i, colorWork.r, colorWork.g, colorWork.b);
+      }
+
+      position.needsUpdate = true;
+      color.needsUpdate = true;
+      wavePlate.geometry.computeVertexNormals();
+    }
+
+    function updateFlexSpline(t) {
+      const waveAngle = t * 1.28;
+      const position = flexSpline.geometry.attributes.position;
+      const color = flexSpline.geometry.attributes.color;
+      for (let i = 0; i < flexSpline.base.length; i++) {
+        const { angle, side } = flexSpline.base[i];
+        const squeeze = Math.cos((angle - waveAngle) * 2) * 0.15;
+        const toothRipple = Math.sin((angle - waveAngle) * 12) * 0.012;
+        const r = flexSpline.radius + side * flexSpline.halfWidth + squeeze + toothRipple;
+        const y = 1.31 + Math.sin((angle - waveAngle) * 2) * 0.025;
+        position.setXYZ(i, Math.cos(angle) * r, y, Math.sin(angle) * r);
+        const pulse = THREE.MathUtils.clamp((squeeze + 0.15) / 0.3, 0, 1);
+        colorWork.copy(colorLow).lerp(colorHot, pulse);
+        color.setXYZ(i, colorWork.r, colorWork.g, colorWork.b);
+      }
+      position.needsUpdate = true;
+      color.needsUpdate = true;
+      flexSpline.geometry.computeVertexNormals();
+      flexSpline.waveGenerator.rotation.y = waveAngle;
+
+      for (const item of flexSpline.teeth) {
+        const squeeze = Math.cos((item.angle - waveAngle) * 2) * 0.15;
+        const r = flexSpline.radius + 0.1 + squeeze;
+        item.mesh.position.set(Math.cos(item.angle) * r, 1.35, Math.sin(item.angle) * r);
+        item.mesh.rotation.y = -item.angle;
+        item.mesh.scale.set(0.82, 1.0 + squeeze * 1.2, 1);
+      }
+    }
+
+    function updateCrankSlider(item, theta) {
+      const localTheta = theta + item.phase;
+      item.crank.rotation.y = -localTheta;
+      const crank = item.crankCenter;
+      const px = crank.x + Math.cos(localTheta) * item.crankRadius;
+      const pz = Math.sin(localTheta) * item.crankRadius;
+      const rodReach = Math.sqrt(Math.max(item.rodLength * item.rodLength - pz * pz, 0.01));
+      const sliderX = px - rodReach;
+
+      item.pin.position.set(px, crank.y + 0.01, pz);
+      item.slider.position.set(sliderX, crank.y, 0);
+
+      scratchA.set(px, crank.y + 0.01, pz);
+      scratchB.set(sliderX, crank.y, 0);
+      setCylinderBetween(item.rod, scratchA, scratchB);
+      setCylinderBetween(item.glow, scratchA, scratchB);
+    }
+
+    function updateGeneva(t) {
+      const drive = t * 1.05;
+      geneva.driver.rotation.y = -drive * 1.6;
+      geneva.pin.position.x = -0.95 + Math.cos(drive) * 0.3;
+      geneva.pin.position.z = 0.05 + Math.sin(drive) * 0.3;
+      const turns = drive / TAU;
+      const step = Math.floor(turns * 6);
+      const frac = turns * 6 - step;
+      const engage = THREE.MathUtils.smoothstep(frac, 0.62, 0.92);
+      const indexAngle = -(step + engage) * TAU / 6;
+      geneva.star.rotation.y = indexAngle;
+      geneva.star.position.y = Math.sin(engage * Math.PI) * 0.035;
+    }
+
+    function updateReductionGearbox(module, drive, t) {
+      const inputAngle = drive * 1.48 + module.phase;
+      const reducerAngle = -inputAngle * module.input.userData.teeth / module.reducer.userData.teeth;
+      const outputAngle = -reducerAngle * module.reducer.userData.teeth / module.output.userData.teeth;
+      const transferAngle = -outputAngle * module.output.userData.teeth / module.transfer.userData.teeth;
+
+      module.input.rotation.y = inputAngle;
+      module.reducer.rotation.y = reducerAngle;
+      module.output.rotation.y = outputAngle;
+      module.transfer.rotation.y = transferAngle;
+      module.flywheel.rotation.x = transferAngle * 0.82;
+
+      const camAngle = reducerAngle * 1.35 + module.phase;
+      const camRadius = 0.27;
+      scratchB.set(
+        module.reducerCenter.x + Math.cos(camAngle) * camRadius,
+        module.reducerCenter.y + 0.23,
+        module.reducerCenter.z + Math.sin(camAngle) * camRadius
+      );
+      module.camPin.position.copy(scratchB);
+
+      const followerZ = 0.08 + Math.sin(camAngle) * 0.34;
+      module.follower.position.set(4.48, 1.14 + Math.cos(camAngle * 2) * 0.035, followerZ);
+      setCylinderBetween(module.camRod, scratchB, module.follower.position);
+
+      scratchC.set(module.outputCenter.x, 1.31, module.outputCenter.z);
+      setCylinderBetween(module.glowRod, scratchC, module.follower.position);
+
+      for (let i = 0; i < module.torqueBeads.length; i++) {
+        const u = (i / module.torqueBeads.length + t * 0.14 + module.phase * 0.07) % 1;
+        const x = 2.04 + u * 2.55;
+        const pulse = Math.sin(u * TAU);
+        const z = -0.72 + pulse * 0.11;
+        const y = 1.3 + Math.cos(u * TAU + t * 2.1) * 0.045;
+        module.torqueBeads[i].position.set(x, y, z);
+        module.torqueBeads[i].rotation.set(t * 1.7 + i, transferAngle * 0.15, inputAngle * 0.2);
+        module.torqueBeads[i].scale.setScalar(0.82 + (0.35 * (0.5 + 0.5 * Math.sin(t * 3 + i))));
+      }
+    }
+
+    function updateChain(t) {
+      for (let i = 0; i < chain.beads.length; i++) {
+        const u = i / chain.beads.length + t * 0.055;
+        sampleClosedPath(chain.path, u, scratchC);
+        chain.beads[i].position.copy(scratchC);
+        chain.beads[i].rotation.set(t * 1.6 + i, t * 0.8, i * 0.4);
+      }
+      for (let i = 0; i < chain.pulleys.length; i++) {
+        chain.pulleys[i].rotation.y = t * (i % 2 ? -1.2 : 1.2);
+      }
+    }
+
+    function animate() {
+      const elapsed = clock.getElapsedTime();
+      const theta = elapsed * 1.06;
+      const sunAngle = theta * 1.72;
+      const carrierAngle = sunAngle * (16 / (56 + 16));
+
+      planetary.sun.rotation.y = -sunAngle;
+      planetary.carrier.rotation.y = carrierAngle;
+      for (const item of planetary.planetData) {
+        item.planet.rotation.y = sunAngle * (16 / 22) - carrierAngle * 2.0;
+      }
+      planetary.ring.rotation.y = Math.sin(elapsed * 0.22) * 0.006;
+
+      updateFlexSpline(elapsed);
+      updateWavePlate(elapsed);
+      for (const slider of crankSliders) updateCrankSlider(slider, theta * 1.35);
+      for (const gearbox of reductionGearboxes) updateReductionGearbox(gearbox, sunAngle, elapsed);
+      updateGeneva(elapsed);
+      updateChain(elapsed);
+
+      controls.update();
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+  </script>
+</body>
+</html>

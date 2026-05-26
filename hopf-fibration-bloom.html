@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hopf Fibration Bloom</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 47%, rgba(18, 255, 228, 0.22), transparent 24%),
+        radial-gradient(circle at 32% 72%, rgba(255, 91, 39, 0.17), transparent 27%),
+        radial-gradient(circle at 72% 22%, rgba(209, 62, 255, 0.19), transparent 29%),
+        linear-gradient(180deg, #020306 0%, #071018 48%, #020306 100%);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+    }
+
+    canvas:active { cursor: grabbing; }
+
+    .vignette,
+    .grain,
+    .spectral-glow {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .vignette {
+      background:
+        radial-gradient(circle at 50% 48%, transparent 0%, transparent 52%, rgba(0, 0, 0, 0.78) 100%),
+        linear-gradient(180deg, rgba(0, 0, 0, 0.3), transparent 38%, rgba(0, 0, 0, 0.42));
+    }
+
+    .grain {
+      opacity: 0.052;
+      mix-blend-mode: screen;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.045) 1px, transparent 1px);
+      background-size: 3px 3px;
+      mask-image: radial-gradient(circle at center, black 0%, black 72%, transparent 100%);
+    }
+
+    .spectral-glow {
+      opacity: 0.82;
+      mix-blend-mode: screen;
+      background:
+        radial-gradient(circle at 50% 46%, rgba(31, 255, 233, 0.18), transparent 21%),
+        radial-gradient(circle at 54% 56%, rgba(255, 196, 75, 0.13), transparent 18%),
+        radial-gradient(circle at 45% 39%, rgba(230, 51, 255, 0.14), transparent 21%);
+    }
+
+    .note {
+      position: fixed;
+      left: max(18px, env(safe-area-inset-left));
+      bottom: max(18px, env(safe-area-inset-bottom));
+      width: min(360px, calc(100vw - 36px));
+      padding: 16px 17px 15px;
+      color: rgba(237, 255, 252, 0.92);
+      background:
+        linear-gradient(145deg, rgba(8, 17, 25, 0.58), rgba(6, 10, 18, 0.34)),
+        radial-gradient(circle at 10% 0%, rgba(31, 255, 233, 0.13), transparent 38%);
+      border: 1px solid rgba(198, 255, 247, 0.13);
+      border-radius: 8px;
+      box-shadow: 0 18px 52px rgba(0, 0, 0, 0.28);
+      backdrop-filter: blur(12px);
+      pointer-events: auto;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+
+    .note h1 {
+      margin: 0 0 7px;
+      font-size: 0.92rem;
+      line-height: 1.1;
+      font-weight: 760;
+      letter-spacing: 0.02em;
+      color: #f5fffc;
+    }
+
+    .note p {
+      margin: 0;
+      font-size: 0.78rem;
+      line-height: 1.45;
+      color: rgba(212, 233, 232, 0.78);
+    }
+
+    .formula {
+      display: block;
+      margin-top: 8px;
+      color: rgba(38, 255, 231, 0.84);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 0.72rem;
+      line-height: 1.35;
+    }
+
+    @media (max-width: 720px) {
+      .note {
+        right: max(14px, env(safe-area-inset-right));
+        left: max(14px, env(safe-area-inset-left));
+        bottom: max(12px, env(safe-area-inset-bottom));
+        width: auto;
+        padding: 12px 13px;
+      }
+
+      .note h1 {
+        font-size: 0.82rem;
+        margin-bottom: 4px;
+      }
+
+      .note p {
+        font-size: 0.7rem;
+      }
+
+      .formula {
+        font-size: 0.66rem;
+        margin-top: 6px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="spectral-glow" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+  <aside class="note" aria-label="About this visualization">
+    <h1>Hopf Fibration Bloom</h1>
+    <p>The colored moving strands sample Hopf fibers on the 3-sphere, then project them into 3D. The motion is a norm-preserving 4D rotation; the faint rings are visual guides.</p>
+    <span class="formula">fiber: z1=e^(iθ)cosη · z2=e^(i(θ+φ))sinη · stereographic S^3 -> R^3</span>
+  </aside>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+    const TAU = Math.PI * 2;
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x02060a);
+    scene.fog = new THREE.FogExp2(0x061019, 0.05);
+
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.01, 120);
+    camera.position.set(4.5, 3.2, 5.2);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: false,
+      powerPreference: "high-performance"
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.7));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.28;
+    document.body.prepend(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0.06, 0);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.055;
+    controls.enablePan = true;
+    controls.screenSpacePanning = true;
+    controls.enableZoom = true;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.22;
+    controls.minDistance = 2.6;
+    controls.maxDistance = 12;
+    controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+    controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
+    controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+    controls.touches.ONE = THREE.TOUCH.ROTATE;
+    controls.touches.TWO = THREE.TOUCH.DOLLY_PAN;
+
+    const root = new THREE.Group();
+    root.rotation.x = -0.18;
+    scene.add(root);
+
+    const clock = new THREE.Clock();
+    const color = new THREE.Color();
+    const fibers = [];
+    const samples = 144;
+    const projectionScale = 0.74;
+
+    const glowMaterials = [];
+    const basePoints = [];
+
+    const ambient = new THREE.HemisphereLight(0xa9fff7, 0x040507, 1.4);
+    scene.add(ambient);
+
+    const cyanLight = new THREE.PointLight(0x26ffe7, 5.2, 12, 1.7);
+    cyanLight.position.set(-2.4, 2.2, 2.8);
+    scene.add(cyanLight);
+
+    const amberLight = new THREE.PointLight(0xff8a36, 3.8, 9, 1.6);
+    amberLight.position.set(2.6, -1.0, 3.2);
+    scene.add(amberLight);
+
+    const magentaLight = new THREE.PointLight(0xce45ff, 3.2, 10, 1.5);
+    magentaLight.position.set(2.2, 2.8, -2.6);
+    scene.add(magentaLight);
+
+    function makeBasePoint(eta, phi, ring, spoke) {
+      return {
+        eta,
+        phi,
+        ring,
+        spoke,
+        hue: (phi / TAU + eta * 0.23) % 1,
+        speed: 0.18 + ring * 0.015 + (spoke % 5) * 0.006
+      };
+    }
+
+    const ringConfig = [
+      [0.22, 8],
+      [0.36, 12],
+      [0.52, 16],
+      [0.68, 18],
+      [0.82, 16],
+      [0.94, 12]
+    ];
+
+    for (let ring = 0; ring < ringConfig.length; ring++) {
+      const [eta, count] = ringConfig[ring];
+      const offset = ring * 0.37;
+      for (let i = 0; i < count; i++) {
+        const phi = (i / count) * TAU + offset;
+        basePoints.push(makeBasePoint(eta, phi, ring, i));
+      }
+    }
+
+    function rotate4D(p, t) {
+      let [x1, x2, x3, x4] = p;
+
+      const a = Math.sin(t * 0.17) * 0.22;
+      const b = Math.cos(t * 0.13) * 0.28;
+      const c = t * 0.105;
+      const d = Math.sin(t * 0.09) * 0.14;
+
+      let ca = Math.cos(a), sa = Math.sin(a);
+      [x1, x4] = [x1 * ca - x4 * sa, x1 * sa + x4 * ca];
+
+      ca = Math.cos(b); sa = Math.sin(b);
+      [x2, x3] = [x2 * ca - x3 * sa, x2 * sa + x3 * ca];
+
+      ca = Math.cos(c); sa = Math.sin(c);
+      [x1, x2] = [x1 * ca - x2 * sa, x1 * sa + x2 * ca];
+
+      ca = Math.cos(d); sa = Math.sin(d);
+      [x3, x4] = [x3 * ca - x4 * sa, x3 * sa + x4 * ca];
+
+      return [x1, x2, x3, x4];
+    }
+
+    function hopfPoint(base, theta, t, target) {
+      const phase = theta + t * base.speed;
+      const z1r = Math.cos(base.eta) * Math.cos(phase);
+      const z1i = Math.cos(base.eta) * Math.sin(phase);
+      const z2r = Math.sin(base.eta) * Math.cos(phase + base.phi);
+      const z2i = Math.sin(base.eta) * Math.sin(phase + base.phi);
+
+      const [x1, x2, x3, x4] = rotate4D([z1r, z1i, z2r, z2i], t);
+      const denom = 1.0 - x4;
+      const scale = projectionScale / denom;
+      target.set(x1 * scale, x2 * scale, x3 * scale);
+      return target;
+    }
+
+    function makeFiber(base, index) {
+      const positions = new Float32Array(samples * 3);
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+      geometry.computeBoundingSphere();
+
+      const material = new THREE.LineBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.58 + (index % 4) * 0.045,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        toneMapped: false
+      });
+      glowMaterials.push(material);
+
+      const line = new THREE.LineLoop(geometry, material);
+      root.add(line);
+      fibers.push({ base, line, geometry, positions, material, index });
+    }
+
+    for (let i = 0; i < basePoints.length; i++) {
+      makeFiber(basePoints[i], i);
+    }
+
+    const beadCount = basePoints.length * 2;
+    const beadPositions = new Float32Array(beadCount * 3);
+    const beadColors = new Float32Array(beadCount * 3);
+    const beadGeometry = new THREE.BufferGeometry();
+    beadGeometry.setAttribute("position", new THREE.BufferAttribute(beadPositions, 3));
+    beadGeometry.setAttribute("color", new THREE.BufferAttribute(beadColors, 3));
+
+    const beadMaterial = new THREE.PointsMaterial({
+      size: 0.072,
+      sizeAttenuation: true,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.94,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      toneMapped: false
+    });
+
+    const beads = new THREE.Points(beadGeometry, beadMaterial);
+    root.add(beads);
+
+    const sphere = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(1.36, 3),
+      new THREE.MeshBasicMaterial({
+        color: 0x1affea,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.08,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        toneMapped: false
+      })
+    );
+    root.add(sphere);
+
+    const equator = new THREE.Group();
+    root.add(equator);
+    for (let i = 0; i < 3; i++) {
+      const torus = new THREE.Mesh(
+        new THREE.TorusGeometry(1.36 + i * 0.08, 0.003, 4, 144),
+        new THREE.MeshBasicMaterial({
+          color: i === 0 ? 0x1affea : (i === 1 ? 0xffb14a : 0xd248ff),
+          transparent: true,
+          opacity: 0.24,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+          toneMapped: false
+        })
+      );
+      torus.rotation.set(i === 0 ? 0 : Math.PI / 2, i === 2 ? Math.PI / 2 : 0, 0);
+      equator.add(torus);
+    }
+
+    const scratch = new THREE.Vector3();
+
+    function updateFibers(t) {
+      for (const fiber of fibers) {
+        const { base, positions, geometry, material, index } = fiber;
+        for (let i = 0; i < samples; i++) {
+          const theta = (i / samples) * TAU;
+          hopfPoint(base, theta, t, scratch);
+          const k = i * 3;
+          positions[k] = scratch.x;
+          positions[k + 1] = scratch.y;
+          positions[k + 2] = scratch.z;
+        }
+
+        geometry.attributes.position.needsUpdate = true;
+        if (index % 2 === 0) geometry.computeBoundingSphere();
+
+        color.setHSL((base.hue + Math.sin(t * 0.11 + index) * 0.035 + 1) % 1, 0.94, 0.66);
+        material.color.copy(color);
+      }
+    }
+
+    function updateBeads(t) {
+      for (let i = 0; i < beadCount; i++) {
+        const base = basePoints[i % basePoints.length];
+        const lap = i < basePoints.length ? 0 : 0.5;
+        const theta = (t * (0.9 + base.ring * 0.09) + lap * TAU + base.spoke * 0.21) % TAU;
+        hopfPoint(base, theta, t, scratch);
+        const k = i * 3;
+        beadPositions[k] = scratch.x;
+        beadPositions[k + 1] = scratch.y;
+        beadPositions[k + 2] = scratch.z;
+
+        const speedPulse = 0.5 + 0.5 * Math.sin(t * 2.2 + base.ring + lap);
+        color.setHSL((base.hue + 0.08 * speedPulse) % 1, 0.95, 0.58 + speedPulse * 0.18);
+        beadColors[k] = color.r;
+        beadColors[k + 1] = color.g;
+        beadColors[k + 2] = color.b;
+      }
+      beadGeometry.attributes.position.needsUpdate = true;
+      beadGeometry.attributes.color.needsUpdate = true;
+      beadGeometry.computeBoundingSphere();
+    }
+
+    function animate() {
+      const t = clock.getElapsedTime();
+
+      updateFibers(t);
+      updateBeads(t);
+
+      root.rotation.y = t * 0.045;
+      root.rotation.z = Math.sin(t * 0.1) * 0.08;
+      sphere.rotation.y = -t * 0.075;
+      sphere.rotation.x = Math.sin(t * 0.08) * 0.22;
+      equator.rotation.y = t * 0.1;
+      equator.rotation.x = Math.sin(t * 0.07) * 0.18;
+
+      cyanLight.position.x = Math.sin(t * 0.31) * 3.2;
+      cyanLight.position.z = Math.cos(t * 0.31) * 3.2;
+      amberLight.position.y = Math.sin(t * 0.23) * 1.4;
+      magentaLight.position.x = Math.cos(t * 0.19) * 2.6;
+
+      controls.update();
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+  </script>
+</body>
+</html>
